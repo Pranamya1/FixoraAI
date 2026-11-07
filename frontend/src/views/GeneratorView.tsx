@@ -43,8 +43,12 @@ function renderFormattedText(text: string) {
 const getDownloadUrl = (path?: string | null) => {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/+$/, '');
-  const serverBase = apiBase.replace(/\/api$/, '');
+  const rawBase = (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    'http://localhost:8000/api'
+  ).trim().replace(/\/+$/, '');
+  const serverBase = rawBase.replace(/\/api$/, '');
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${serverBase}${cleanPath}`;
 };

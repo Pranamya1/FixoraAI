@@ -8,7 +8,14 @@ import type {
   ConnectedAccount
 } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/+$/, '');
+const rawApiBase = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:8000/api'
+).trim().replace(/\/+$/, '');
+
+// Ensure /api path is present when pointing to remote backend origin
+const API_BASE = rawApiBase.endsWith('/api') ? rawApiBase : `${rawApiBase}/api`;
 const LOCAL_GUIDELINES_KEY = 'fixora_local_guidelines';
 
 function rememberGuideline(item: any) {
