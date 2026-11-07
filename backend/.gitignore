@@ -1,0 +1,23 @@
+# Python virtual environment
+venv/
+env/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & secrets (NEVER commit to GitHub)
+.env
+.env.local
+*.env
+
+# Generated runtime outputs
+generated_assets/
+*.png
+*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -34,9 +34,16 @@ app = FastAPI(
 )
 
 # CORS Middleware
+# Explicitly whitelist local origins and safely match Render domains via allow_origin_regex
+# (Wildcard '*' with allow_credentials=True is rejected by modern browsers)
+cors_origins = [o for o in settings.CORS_ORIGINS if o and o != "*"]
+if settings.APP_STUDIO_URL and settings.APP_STUDIO_URL not in cors_origins:
+    cors_origins.append(settings.APP_STUDIO_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://.*\.onrender\.com|http://localhost:.*|http://127\.0\.0\.1:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,12 +89,24 @@ async def delete_account(
 ):
     """
     Permanently deletes user account from Supabase Auth and purges all workspace data.
+    Ensures safe deletion order to respect foreign key constraints.
     """
     target_email = (email or user.email or "").strip().lower()
     target_uid = user_id or (user.id if user.id != "00000000-0000-0000-0000-000000000002" else None)
     
     deleted_from_auth = False
     
+    # Tables in exact child-to-parent foreign key order
+    tables_to_purge = [
+        "violations",
+        "audit_reports",
+        "webhook_dispatch_logs",
+        "webhooks",
+        "posts",
+        "guideline_chunks",
+        "brand_guidelines"
+    ]
+
     # 1. Delete from Supabase Auth & Cloud Database
     if db_manager.supabase:
         try:
@@ -101,7 +120,7 @@ async def delete_account(
                     logger.warning(f"Failed deleting user by ID {target_uid}: {e}")
 
             # Delete by email matching from Supabase Auth
-            if target_email:
+            if target_email and not deleted_from_auth:
                 try:
                     users_list = db_manager.supabase.auth.admin.list_users()
                     for u in users_list:
@@ -112,25 +131,38 @@ async def delete_account(
                 except Exception as e:
                     logger.warning(f"Error querying/deleting users by email from Supabase Auth: {e}")
 
-            # Purge from Supabase tables
-            try:
-                db_manager.supabase.table("posts").delete().eq("org_id", user.org_id).execute()
-                db_manager.supabase.table("guideline_chunks").delete().eq("org_id", user.org_id).execute()
-                db_manager.supabase.table("brand_guidelines").delete().eq("org_id", user.org_id).execute()
-            except Exception as e:
-                logger.warning(f"Error purging Supabase tables: {e}")
+            # Purge from Supabase tables in child-to-parent order
+            for tbl in tables_to_purge:
+                try:
+                    db_manager.supabase.table(tbl).delete().eq("org_id", user.org_id).execute()
+                except Exception as e:
+                    logger.warning(f"Error purging Supabase table '{tbl}': {e}")
         except Exception as e:
             logger.error(f"Unexpected error in Supabase account deletion: {e}")
 
+    # Also purge via async client if configured
+    if db_manager._sb:
+        for tbl in tables_to_purge:
+            try:
+                await db_manager._sb.delete(tbl, {"org_id": user.org_id})
+            except Exception as e:
+                logger.debug(f"Async Supabase purge for {tbl}: {e}")
+
     # 2. Purge in-memory records
-    db_manager._memory_store["posts"] = [p for p in db_manager._memory_store["posts"] if p.get("org_id") != user.org_id]
-    db_manager._memory_store["brand_guidelines"] = [g for g in db_manager._memory_store["brand_guidelines"] if g.get("org_id") != user.org_id]
-    db_manager._memory_store["guideline_chunks"] = [c for c in db_manager._memory_store["guideline_chunks"] if c.get("org_id") != user.org_id]
-    db_manager._memory_store["users"] = [u for u in db_manager._memory_store["users"] if u.get("email", "").lower() != target_email]
+    for key in tables_to_purge:
+        if key in db_manager._memory_store:
+            db_manager._memory_store[key] = [
+                item for item in db_manager._memory_store[key]
+                if item.get("org_id") != user.org_id
+            ]
+    db_manager._memory_store["users"] = [
+        u for u in db_manager._memory_store["users"]
+        if u.get("email", "").lower() != target_email
+    ]
 
     return {
         "status": "success",
-        "message": f"Account '{target_email}' successfully purged from FixoraAI and Supabase Auth.",
+        "message": f"Account '{target_email}' successfully purged from FixoraAI.",
         "auth_deleted": deleted_from_auth
     }
 

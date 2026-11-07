@@ -8,7 +8,7 @@ import type {
   ConnectedAccount
 } from '../types';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/+$/, '');
 const LOCAL_GUIDELINES_KEY = 'fixora_local_guidelines';
 
 function rememberGuideline(item: any) {
@@ -255,8 +255,20 @@ export const api = {
       const params = new URLSearchParams();
       if (email) params.append('email', email);
       if (userId) params.append('user_id', userId);
+
+      const headers: Record<string, string> = {};
+      try {
+        const { supabase } = await import('./supabase');
+        const { data } = await supabase.auth.getSession();
+        const token = data?.session?.access_token;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } catch (err) {
+        console.warn('Could not attach session token to deleteAccount:', err);
+      }
+
       const res = await fetch(`${API_BASE}/account?${params.toString()}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       });
       return res.ok ? res.json() : null;
     } catch (e) {

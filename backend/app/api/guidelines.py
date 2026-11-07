@@ -282,7 +282,7 @@ Text:
 Respond ONLY with valid JSON array of objects.
 """
             res = client.models.generate_content(
-                model=settings.GEMINI_MODEL or "gemini-2.5-flash",
+                model=settings.GEMINI_MODEL or "gemini-3-flash-preview",
                 contents=prompt
             )
             raw_text = res.text.strip()

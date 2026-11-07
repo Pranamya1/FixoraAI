@@ -42,8 +42,11 @@ function renderFormattedText(text: string) {
 
 const getDownloadUrl = (path?: string | null) => {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `http://localhost:8000${path}`;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').replace(/\/+$/, '');
+  const serverBase = apiBase.replace(/\/api$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${serverBase}${cleanPath}`;
 };
 
 export function GeneratorView({ onNavigate }: GeneratorViewProps) {
@@ -707,7 +710,7 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
                       className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-blue-500 text-xs"
                     />
                     <a
-                      href={`https://wa.me/${managerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, please review this generated post on FixoraAI: "${result.title}" - http://localhost:5173`)}`}
+                      href={`https://wa.me/${managerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, please review this generated post on FixoraAI: "${result.title}" - ${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}`)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 cursor-pointer"
@@ -731,7 +734,7 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
                       className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-blue-500 text-xs"
                     />
                     <a
-                      href={`mailto:${managerEmail}?subject=${encodeURIComponent(`[Review] ${result.title}`)}&body=${encodeURIComponent(`Hi,\n\nPlease review this generated post on FixoraAI:\n\nTitle: ${result.title}\nCompliance Score: 100%\n\nLink: http://localhost:5173`)}`}
+                      href={`mailto:${managerEmail}?subject=${encodeURIComponent(`[Review] ${result.title}`)}&body=${encodeURIComponent(`Hi,\n\nPlease review this generated post on FixoraAI:\n\nTitle: ${result.title}\nCompliance Score: 100%\n\nLink: ${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}`)}`}
                       className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Mail className="h-3.5 w-3.5" />

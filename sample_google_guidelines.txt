@@ -1,0 +1,74 @@
+# Google Brand Identity & Content Governance Guidelines
+Version: 2026.1 | Classification: Public Marketing & Developer Relations
+
+## 1. Brand Purpose & Core Philosophy
+Our mission is to organize the world's information and make it universally accessible and useful. Every piece of public content—whether a LinkedIn post, X update, developer blog, or conference poster—must reflect our commitment to being universally helpful, optimistic, human, and responsible.
+
+---
+
+## 2. Tone of Voice & Editorial Principles
+- **Helpful & Human First:** Write like a knowledgeable, friendly guide. Avoid detached corporate speak, aggressive sales pressure, or empty marketing buzzwords.
+- **Clear & Simple:** Explain complex technological innovations (AI models, quantum computing, distributed infrastructure) in plain language that an engineer appreciates and a non-expert understands.
+- **Optimistic yet Grounded:** Champion the transformative potential of technology with genuine enthusiasm, but always balance excitement with ethical responsibility and practical reality.
+- **Inclusive & Globally Accessible:** Use welcoming, culturally sensitive, and universally accessible vocabulary. Avoid regional idioms, gendered phrasing, or exclusionary jargon.
+
+---
+
+## 3. Brand Vocabulary & Diction Standards
+### Preferred Vocabulary (Recommended)
+- Use: "helpful", "accessible", "collaborative", "responsible AI", "thoughtfully designed", "scalable", "open ecosystem", "user-first", "empowering", "breakthrough".
+
+### Restricted & Prohibited Terms
+- **Slang & Colloquialisms:** Never use "cheap" (use "cost-effective" or "accessible"), "stuff", "game-changer", "ninja", or "rockstar".
+- **Aggressive or Hype Language:** Avoid sensationalized words like "insane", "killer feature", "destroy", or "10x revolution".
+- **Unqualified Superlatives:** Never state "the best in the world", "#1 undisputed leader", or "infinitely better" unless accompanied by audited third-party benchmark citations.
+
+---
+
+## 4. Competitor Policy & Public Positioning
+- **Zero Disparagement:** Strictly never name or disparage industry competitors (e.g., Microsoft, Apple, Amazon, OpenAI, Meta) in public social media copy or marketing assets.
+- **Focus on Value, Not Rivalry:** Differentiate based on the strength of our own research, open community contributions, and user experience.
+- **Fair Comparison Standards:** Comparative tables or benchmarks in technical whitepapers must use neutral, objective metrics and clear methodology notes.
+
+---
+
+## 5. Legal Claims & Regulatory Compliance
+- **No Absolute Guarantees:** Never guarantee absolute outcomes (e.g., "guaranteed 100% uptime", "guaranteed zero security breaches", "100% accurate AI outputs"). Use qualified language: "engineered for 99.99% availability" or "designed with multi-layered security defenses".
+- **Responsible AI Disclaimer:** Any discussion of generative AI capabilities must adhere to Google's AI Principles and clearly disclose that AI outputs should be human-reviewed.
+- **Privacy & Data Security:** Always emphasize that user data remains private, encrypted in transit and at rest, and is never sold to third parties.
+
+---
+
+## 6. Visual Identity & Color System
+Our visual design reflects clarity, balance, and playful intelligence.
+
+### Official Primary Palette
+- **Google Blue:** `#4285F4` (Primary actions, key accents, technology headers)
+- **Google Red:** `#EA4335` (Accent markers, alerts, vital focal points)
+- **Google Yellow:** `#FBBC05` (Highlights, energetic accents)
+- **Google Green:** `#34A853` (Success indicators, verification badges, sustainability)
+
+### Surface & Neutral Palette
+- **Dark Surface:** `#202124` (Google Dark Slate for high-contrast dark modes)
+- **Light Surface:** `#FFFFFF` to `#F8F9FA` (Clean, uncluttered, breathable backgrounds)
+- **Body Text:** `#3C4043` (High-contrast, readable slate)
+- **Muted Text:** `#5F6368` (Secondary timestamps, captions, metadata)
+
+### Typography Hierarchy
+- Primary Wordmarks & Headlines: Google Sans / Product Sans (Clean, geometric, humanistic).
+- Body & UI Interfaces: Roboto / Google Sans Text (16px base, 1.5 line height for maximum legibility).
+- Code & Technical Data: Google Sans Mono or Roboto Mono.
+
+---
+
+## 7. Social Media & Channel Formatting Rules
+- **Opening Hook:** Start posts with a compelling question or an authentic human observation. Avoid clickbait.
+- **Body Structure:** Limit paragraphs to 2–3 sentences. Use clean bullet points with consistent emoji accents (💡, 🚀, 🌐, 🔒).
+- **Hashtag Standards:** Limit hashtags to 3–4 high-relevance tags at the very end of LinkedIn and Twitter posts (e.g., `#Google #GoogleCloud #ResponsibleAI #Engineering`). Never bury hashtags inside sentences.
+- **Call-to-Action (CTA):** End with a clear, low-friction invitation to explore (e.g., "Explore the open-source repo 👇", "Learn more on the Google for Developers blog", "Join us at Google I/O").
+
+
+Pranamya Kalambe
+Nainsi Khanwe
+Kiran Kolhe
+Tejaswi Dehankar

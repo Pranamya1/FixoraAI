@@ -1242,7 +1242,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                       className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-blue-500 text-xs"
                     />
                     <a
-                      href={`https://wa.me/${managerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, please review this draft on FixoraAI: "${modalPost.title}" - http://localhost:5173`)}`}
+                      href={`https://wa.me/${managerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, please review this draft on FixoraAI: "${modalPost.title}" - ${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}`)}`}
                       target="_blank"
                       rel="noreferrer"
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 cursor-pointer"
@@ -1266,7 +1266,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                       className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-blue-500 text-xs"
                     />
                     <a
-                      href={`mailto:${managerEmail}?subject=${encodeURIComponent(`[Review] ${modalPost.title}`)}&body=${encodeURIComponent(`Hi,\n\nPlease review this draft on FixoraAI:\n\nTitle: ${modalPost.title}\nScore: ${modalPost.compliance_score || 100}%\n\nLink: http://localhost:5173`)}`}
+                      href={`mailto:${managerEmail}?subject=${encodeURIComponent(`[Review] ${modalPost.title}`)}&body=${encodeURIComponent(`Hi,\n\nPlease review this draft on FixoraAI:\n\nTitle: ${modalPost.title}\nScore: ${modalPost.compliance_score || 100}%\n\nLink: ${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'}`)}`}
                       className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Mail className="h-3.5 w-3.5" />
