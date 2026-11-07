@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import type { TabType } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { DashboardView } from './views/DashboardView';
 import { GeneratorView } from './views/GeneratorView';
 import { ReviewQueueView } from './views/ReviewQueueView';
@@ -62,17 +63,7 @@ export function App() {
     return 'dashboard';
   });
   const [pendingReviewsCount, setPendingReviewsCount] = useState<number>(0);
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('fixora_theme') as 'dark' | 'light') || 'dark';
-  });
-
-  const handleToggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('fixora_theme', next);
-      return next;
-    });
-  };
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Sync Supabase Auth with persisted local session
   useEffect(() => {
@@ -294,63 +285,55 @@ export function App() {
     );
   }
 
-  // 3. Authenticated Application
-  const isDark = theme === 'dark';
+  // 3. Authenticated Application (Bright Mode only)
   return (
     <div
-      className={isDark ? 'dark-site' : 'light-site'}
+      className="light-site min-h-screen"
       style={{
-        backgroundColor: isDark ? '#0B0F17' : '#F8FAFC',
-        padding: 0,
-        height: '100vh',
+        backgroundColor: '#F8FAFC',
+        padding: '6px',
+        height: '100dvh',
         width: '100vw',
         boxSizing: 'border-box',
         display: 'flex',
-        gap: '10px',
+        gap: '8px',
         overflow: 'hidden'
       }}
     >
-      {/* Sidebar: 295px horizontal width */}
+      {/* Sidebar: Desktop persistent (hidden < 1024px) + Mobile slide-over drawer */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         pendingReviewsCount={pendingReviewsCount}
         currentUser={currentUser}
-        theme={theme}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
 
-      {/* Right area: takes remaining space, 10px gap between topbar and content, 0 margin */}
+      {/* Main content viewport: flex column taking remaining space */}
       <div
+        className="flex-1 flex flex-col min-w-0 h-full overflow-hidden"
         style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          height: '100%',
-          minWidth: 0,
+          gap: '8px',
           margin: 0
         }}
       >
-        {/* Topbar: takes 100% of remaining width */}
+        {/* Topbar: includes hamburger toggle for mobile / tablet */}
         <Topbar
           activeTab={activeTab}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
           onSignOut={handleSignOut}
+          onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
         />
 
-        {/* Dashboard Content area: takes remaining height & width */}
+        {/* Dashboard Content area: responsive padding, bottom nav clearance */}
         <main
+          className={`flex-1 w-full bg-white rounded-lg border border-[#CBD5E1] flex flex-col min-h-0 ${
+            activeTab === 'review' 
+              ? 'p-0 overflow-hidden' 
+              : 'p-3 sm:p-5 overflow-y-auto pb-20 lg:pb-5'
+          }`}
           style={{
-            flex: 1,
-            width: '100%',
-            backgroundColor: isDark ? '#161F30' : '#FFFFFF',
-            borderRadius: '8px',
-            boxSizing: 'border-box',
-            padding: '24px',
-            border: `1px solid ${isDark ? 'rgba(248, 250, 252, 0.12)' : '#E2E8F0'}`,
-            margin: 0,
-            overflowY: 'auto'
+            margin: 0
           }}
         >
           {activeTab === 'dashboard' && (
@@ -359,8 +342,8 @@ export function App() {
               onNavigate={setActiveTab}
             />
           )}
-          {activeTab === 'generator' && <GeneratorView />}
-          {activeTab === 'review' && <ReviewQueueView />}
+          {activeTab === 'generator' && <GeneratorView onNavigate={setActiveTab} />}
+          {activeTab === 'review' && <ReviewQueueView onNavigate={setActiveTab} />}
           {activeTab === 'guidelines' && <GuidelinesView />}
           {activeTab === 'settings' && (
             <SettingsView
@@ -371,6 +354,13 @@ export function App() {
           )}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (Thumb-friendly navigation on < 1024px) */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        pendingReviewsCount={pendingReviewsCount}
+      />
     </div>
   );
 }

@@ -5,7 +5,8 @@ import {
   Sparkles, 
   Database,
   Image as ImageIcon,
-  FileCode
+  FileCode,
+  Trash2
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -19,6 +20,7 @@ export function GuidelinesView() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [guidelineText, setGuidelineText] = useState('');
   const [formError, setFormError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGuidelines();
@@ -33,6 +35,21 @@ export function GuidelinesView() {
       console.error('Failed to load guidelines:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteGuideline = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${name || 'this guideline'}"? This will remove its indexed rules.`)) {
+      return;
+    }
+    try {
+      setDeletingId(id);
+      await api.deleteGuideline(id);
+      setGuidelines(prev => prev.filter(g => g.id !== id));
+    } catch (err: any) {
+      alert(`Failed to delete guideline: ${err.message || 'Error'}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -101,7 +118,7 @@ export function GuidelinesView() {
         </div>
       </div>
 
-      {/* Kalambe Devs Official Guidelines PDF Card */}
+      {/* Company Official Guidelines PDF Card */}
       <div 
         style={{
           backgroundColor: 'var(--theme-surface)',
@@ -121,7 +138,7 @@ export function GuidelinesView() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-900">Kalambe Devs Official Brand Guidelines</h3>
+              <h3 className="text-sm font-bold text-slate-900">Official Brand Guidelines</h3>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Active B2B Standard
               </span>
@@ -133,8 +150,8 @@ export function GuidelinesView() {
         </div>
 
         <a
-          href="/Kalambe_Devs_Brand_Guidelines.pdf"
-          download="Kalambe_Devs_Brand_Guidelines.pdf"
+          href="/Brand_Guidelines.pdf"
+          download="Brand_Guidelines.pdf"
           style={{
             backgroundColor: 'var(--theme-primary)',
             color: '#ffffff'
@@ -251,25 +268,40 @@ export function GuidelinesView() {
             <div className="space-y-2.5">
               {guidelines.map((g) => (
                 <div key={g.id} className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                       {g.file_type === 'image/png' || g.file_type === 'image/jpeg' ? (
                         <ImageIcon className="h-4 w-4 text-cyan-600" />
                       ) : (
                         <FileCode className="h-4 w-4" />
                       )}
                     </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900">{g.name}</h4>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-slate-900 truncate">{g.name}</h4>
                       <p className="text-[11px] text-slate-500">
                         Version: {g.version} • {g.chunk_count || 'Multi-rule'} vector chunks indexed
                       </p>
                     </div>
                   </div>
 
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Active & Searchable
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Active & Searchable
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGuideline(g.id, g.name)}
+                      disabled={deletingId === g.id}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
+                      title="Delete guideline"
+                    >
+                      {deletingId === g.id ? (
+                        <div className="h-4 w-4 rounded-full border-2 border-rose-600 border-t-transparent animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

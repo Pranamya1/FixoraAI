@@ -38,6 +38,14 @@ export interface Violation {
   created_at?: string;
 }
 
+export interface VisualAuditDetails {
+  palette_compliance?: string;
+  typography_legibility?: string;
+  layout_balance?: string;
+  image_text_alignment?: string;
+  visual_summary?: string;
+}
+
 export interface AuditReport {
   id: string;
   post_id: string;
@@ -45,6 +53,7 @@ export interface AuditReport {
   verdict: 'APPROVED' | 'ACTION_REQUIRED';
   summary: string;
   violations: Violation[];
+  visual_audit?: VisualAuditDetails;
   fast_tracked: boolean;
   evaluated_at: string;
 }

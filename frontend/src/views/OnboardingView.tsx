@@ -151,9 +151,9 @@ export function OnboardingView({ initialData, onComplete }: OnboardingViewProps)
     } finally { setAnalyzingRules(false); }
   };
 
-  const loadKalambeSample = () => {
+  const loadSampleGuidelines = () => {
     setRulesText(
-      `Kalambe Devs builds high-performance web applications, mobile apps, and scalable B2B SaaS.\n` +
+      `We build high-performance web applications, mobile apps, and scalable B2B SaaS.\n` +
       `Tone of Voice: Attractive & bold, yet clear & professional. Always lead with strong, scroll-stopping hooks.\n` +
       `Prohibited Content: Never name, attack, or negatively compare competitor agencies or tools.\n` +
       `Legal Claims: Never guarantee absolute financial returns or 100% bug-free uptime without client sign-off.\n` +
@@ -323,21 +323,21 @@ export function OnboardingView({ initialData, onComplete }: OnboardingViewProps)
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={loadKalambeSample}
+                  onClick={loadSampleGuidelines}
                   className="px-2.5 py-1 rounded-md bg-white border border-[#CBD5E1] hover:border-[#009DFF] text-slate-700 hover:text-[#009DFF] text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Fills with Kalambe Devs official B2B guidelines"
+                  title="Fills with sample B2B guidelines"
                 >
-                  <span>⚡ Load Kalambe Devs Sample</span>
+                  <span>⚡ Load Sample Guidelines</span>
                 </button>
 
                 <a
-                  href="/Kalambe_Devs_Brand_Guidelines.pdf"
-                  download="Kalambe_Devs_Brand_Guidelines.pdf"
+                  href="/Brand_Guidelines.pdf"
+                  download="Brand_Guidelines.pdf"
                   className="px-2.5 py-1 rounded-md bg-white border border-[#CBD5E1] hover:border-emerald-500 text-slate-700 hover:text-emerald-700 text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer"
                   title="Download the official 4-page PDF"
                 >
                   <FileDown className="h-3 w-3 text-emerald-600" />
-                  <span>Download Kalambe Devs PDF</span>
+                  <span>Download Brand Guidelines PDF</span>
                 </a>
               </div>
 

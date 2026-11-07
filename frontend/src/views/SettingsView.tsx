@@ -44,7 +44,6 @@ const AVAILABLE_CHANNELS = [
 ];
 
 export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: SettingsViewProps) {
-  const isDark = (typeof localStorage !== 'undefined' && localStorage.getItem('fixora_theme') === 'dark') || true;
   // Account profile state
   const [fullName, setFullName] = useState(currentUser?.name || '');
   const [companyName, setCompanyName] = useState(currentUser?.org || '');
@@ -277,7 +276,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Your full name"
-              className="w-full px-3 py-2 bg-white border border-slate-300 dark:border-white/10 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
             />
           </div>
 
@@ -307,7 +306,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Organization name"
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 dark:border-white/10 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
@@ -319,7 +318,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
             <select
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 dark:border-white/10 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
             >
               <option value="Enterprise B2B SaaS & Cloud Software">Enterprise B2B SaaS & Cloud Software</option>
               <option value="FinTech, Banking & Financial Services">FinTech, Banking & Financial Services</option>
@@ -362,7 +361,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
                 onClick={() => toggleTone(t.name)}
                 style={{
                   borderColor: isSelected ? 'var(--theme-primary)' : 'var(--theme-border)',
-                  backgroundColor: isSelected ? (isDark ? 'rgba(99, 102, 241, 0.15)' : '#ffffff') : (isDark ? 'rgba(255, 255, 255, 0.04)' : '#F8FAFC')
+                  backgroundColor: isSelected ? '#EFF6FF' : '#F8FAFC'
                 }}
                 className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start justify-between gap-2 hover:bg-white ${
                   isSelected ? 'ring-1 ring-indigo-500 shadow-2xs' : ''
@@ -413,7 +412,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
             {docNames.map((name, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-300 dark:border-white/10 shadow-2xs"
+                className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-300 shadow-2xs"
               >
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -440,7 +439,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
         {docNames.length < 5 ? (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="p-4 rounded-xl bg-white border border-dashed border-slate-300 dark:border-white/10 text-center cursor-pointer hover:border-indigo-500 transition-colors"
+            className="p-4 rounded-xl bg-white border border-dashed border-slate-300 text-center cursor-pointer hover:border-indigo-500 transition-colors"
           >
             <UploadCloud className="h-5 w-5 text-slate-600 mx-auto mb-1" />
             <p className="text-xs font-bold text-slate-800">

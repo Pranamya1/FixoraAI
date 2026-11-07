@@ -75,13 +75,25 @@ export const api = {
 
   // --- Audit & AI Compliance ---
   async evaluatePost(postId: string): Promise<AuditReport> {
-    const res = await fetch(`${API_BASE}/audit/evaluate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ post_id: postId })
-    });
-    if (!res.ok) throw new Error('Failed to evaluate compliance');
-    return res.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(`${API_BASE}/audit/evaluate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error('Failed to evaluate compliance');
+      return res.json();
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Compliance evaluation timed out. Please try again.');
+      }
+      throw err;
+    }
   },
 
   async getLatestAuditReport(postId: string): Promise<AuditReport | null> {
@@ -173,12 +185,18 @@ export const api = {
 
   // --- Guidelines Ingestion ---
   async getGuidelines(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/guidelines`);
-    if (!res.ok) throw await requestError(res, 'Failed to load guidelines');
-    const serverItems = await res.json();
+    try {
+      const res = await fetch(`${API_BASE}/guidelines`);
+      if (res.ok) {
+        const serverItems = await res.json();
+        // Server is primary source of truth for RAG indexed guidelines
+        return serverItems || [];
+      }
+    } catch (e) {
+      console.warn('Backend guidelines fetch failed, falling back to local storage:', e);
+    }
     const localItems = JSON.parse(localStorage.getItem(LOCAL_GUIDELINES_KEY) || '[]');
-    const byId = new Map([...localItems, ...serverItems].map((item: any) => [item.id, item]));
-    return Array.from(byId.values());
+    return localItems;
   },
 
   async uploadGuidelineFile(file: File, name: string, version = 'v1.0'): Promise<any> {
@@ -203,6 +221,23 @@ export const api = {
     });
     if (!res.ok) throw await requestError(res, 'Failed to index raw guidelines');
     const item = await res.json(); rememberGuideline(item); return item;
+  },
+
+  async deleteGuideline(id: string): Promise<void> {
+    try {
+      const res = await fetch(`${API_BASE}/guidelines/${id}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok && res.status !== 404) {
+        throw await requestError(res, 'Failed to delete guideline');
+      }
+    } catch (err) {
+      console.warn('Backend guideline delete notice:', err);
+    }
+    try {
+      const items = JSON.parse(localStorage.getItem(LOCAL_GUIDELINES_KEY) || '[]');
+      localStorage.setItem(LOCAL_GUIDELINES_KEY, JSON.stringify(items.filter((existing: any) => existing.id !== id)));
+    } catch { /* local cache is optional */ }
   },
 
   async analyzeTextRules(content: string, companyName: string): Promise<{ rules: Array<{title: string; category: string; rule_text: string; severity: string}>; needs_clarification?: boolean; message?: string }> {

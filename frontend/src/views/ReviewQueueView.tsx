@@ -1,149 +1,381 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Sparkles, 
   Send, 
   Plus, 
   X, 
-  ShieldCheck, 
-  AlertTriangle, 
-  Check, 
-  Wand2, 
   Share2, 
-  Mail, 
-  MessageCircle, 
-  MessageSquare, 
+  Copy, 
+  Check, 
+  RotateCcw, 
+  FileText, 
   CheckCircle2, 
   ExternalLink,
-  RefreshCw,
-  Copy,
-  FileText,
-  Sliders,
-  ChevronDown,
-  RotateCcw
+  MessageCircle,
+  Mail,
+  Mic,
+  Clock,
+  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  FileUp,
+  BookOpen,
+  UploadCloud,
+  ShieldAlert,
+  ArrowRight
 } from 'lucide-react';
 import { api } from '../services/api';
-import type { Post, AuditReport, Violation } from '../types';
+import type { Post, AuditReport } from '../types';
 
-interface ChatMessage {
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Message {
   id: string;
-  sender: 'user' | 'ai';
-  text: string;
-  timestamp: string;
+  role: 'user' | 'assistant';
+  content: string;
+  description?: string;
   attachmentName?: string;
-  channel?: string;
   post?: Post;
   auditReport?: AuditReport;
-  isEvaluating?: boolean;
+  fixedContent?: string;
 }
 
-export function ReviewQueueView() {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
-      id: 'welcome',
-      sender: 'ai',
-      text: "👋 Hello! I am your AI Brand Governance Copilot. Paste any LinkedIn post, social caption, or article below, and I'll audit it against your Kalambe Devs guidelines (Attractive & Bold + Clear & Professional). I'll cite specific rules, provide 1-click fixes, and help you publish to LinkedIn or dispatch to higher-ups for approval.",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string; // ISO
+  messages: Message[];
+}
 
-  const [inputMessage, setInputMessage] = useState('');
-  const [selectedChannel, setSelectedChannel] = useState<'LinkedIn' | 'Twitter' | 'Facebook' | 'Instagram'>('LinkedIn');
-  const [selectedTone, setSelectedTone] = useState('Attractive & Bold');
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'fixora_review_sessions';
+
+function loadSessions(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSessions(sessions: ChatSession[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function renderFormattedPost(content: string) {
+  const parts = content.split(/(#[a-zA-Z0-9_]+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('#')) {
+      return (
+        <span key={i} className="text-blue-600 font-semibold">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+interface ReviewQueueViewProps {
+  onNavigate?: (tab: 'dashboard' | 'generator' | 'review' | 'guidelines' | 'settings') => void;
+}
+
+export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
+  // ── Session state ──
+  const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(
+    () => loadSessions()[0]?.id ?? null
+  );
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && window.innerWidth < 640) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // ── Active chat state ──
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const ss = loadSessions();
+    const active = ss[0];
+    return active ? active.messages : [];
+  });
+  const [input, setInput] = useState('');
+  const [draftText, setDraftText] = useState('');
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [tempDraftInput, setTempDraftInput] = useState('');
   const [attachment, setAttachment] = useState<File | null>(null);
-  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [applyingFixId, setApplyingFixId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [publishUrl, setPublishUrl] = useState<string | null>(null);
 
-  // Modal for higher-up review dispatch
+  // ── Guidelines existence state & modal ──
+  const [guidelinesCount, setGuidelinesCount] = useState<number | null>(null);
+  const [showNoGuidelinesModal, setShowNoGuidelinesModal] = useState(false);
+  const [isUploadingGuideline, setIsUploadingGuideline] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pendingSendText, setPendingSendText] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    api.getGuidelines()
+      .then(items => setGuidelinesCount(items.length))
+      .catch(() => setGuidelinesCount(0));
+  }, []);
+
+  // ── Dispatch Modal state ──
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [modalPost, setModalPost] = useState<Post | null>(null);
   const [reviewChannels, setReviewChannels] = useState<string[]>(['WHATSAPP', 'GMAIL', 'SLACK', 'TEAMS']);
   const [managerPhone, setManagerPhone] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
-  const [managerNotes, setManagerNotes] = useState('');
   const [dispatching, setDispatching] = useState(false);
-  const [dispatchResults, setDispatchResults] = useState<any[] | null>(null);
+  const [dispatchSuccess, setDispatchSuccess] = useState<any[] | null>(null);
 
+  // ── Refs ──
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const viewContainerRef = useRef<HTMLDivElement>(null);
+  const [availableHeight, setAvailableHeight] = useState<number>(0);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isEvaluating]);
-
-  // Sample prompt helpers
-  const handleLoadSample = (sampleType: 'b2b' | 'claims' | 'tone') => {
-    if (sampleType === 'b2b') {
-      setInputMessage(
-        "Please review this draft for LinkedIn:\n\n" +
-        "We just benchmarked our new custom microservices engine at Kalambe Devs.\n\n" +
-        "Result: 43ms global latency under 100k concurrent requests. Our proprietary optimization pipeline reduces database read overhead by 68% while maintaining 99.99% uptime.\n\n" +
-        "When building for enterprise B2B SaaS, architecture isn't just an implementation detail — it's your company's foundation.\n\n" +
-        "#SaaS #B2B #Engineering #SoftwareArchitecture"
-      );
-    } else if (sampleType === 'claims') {
-      setInputMessage(
-        "Audit this draft:\n\n" +
-        "Kalambe Devs is 100% the best development company in the world! Unlike AWS and Vercel who constantly have outages, our apps never ever crash. Switch to us today for unbeatable prices and guaranteed 10x revenue in 30 days.\n\n" +
-        "#BestTech #CrushingCompetitors #EasyMoney"
-      );
-    } else {
-      setInputMessage(
-        "Review this tone:\n\n" +
-        "Hey everyone, maybe check out our website building stuff if you have some time? We kind of build web apps and saas things, hope you guys like it. Let us know what you think.\n\n" +
-        "#code #web"
-      );
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
     }
-    textareaRef.current?.focus();
+  }, [input]);
+
+  useEffect(() => {
+    if (!viewContainerRef.current) return;
+    const updateSize = () => {
+      if (viewContainerRef.current) {
+        setAvailableHeight(viewContainerRef.current.clientHeight);
+      }
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const pillHeight = availableHeight > 0 ? Math.max(72, Math.round(availableHeight * 0.10)) : 80;
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  // ── Persist messages → session on every change ──
+  const persistMessages = useCallback((msgs: Message[], sessionId: string | null) => {
+    if (!sessionId) return;
+    setSessions(prev => {
+      const updated = prev.map(s =>
+        s.id === sessionId
+          ? {
+              ...s,
+              messages: msgs,
+              title: msgs.find(m => m.role === 'user')?.content.slice(0, 50) || s.title
+            }
+          : s
+      );
+      saveSessions(updated);
+      return updated;
+    });
+  }, []);
+
+  // ── Switch to a session ──
+  const switchSession = (id: string) => {
+    const sess = sessions.find(s => s.id === id);
+    if (!sess) return;
+    setActiveSessionId(id);
+    setMessages(sess.messages);
+    setInput('');
+    setAttachment(null);
+    setPublishUrl(null);
   };
 
-  const handleSendMessage = async () => {
-    const rawText = inputMessage.trim();
-    if (!rawText && !attachment) return;
-
-    const userMsgId = `user-${Date.now()}`;
-    const aiMsgId = `ai-${Date.now()}`;
-    const userText = rawText || (attachment ? `Uploaded file: ${attachment.name}` : '');
-
-    // Add user message to stream
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: userMsgId,
-        sender: 'user',
-        text: userText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        attachmentName: attachment?.name,
-        channel: selectedChannel
+  // ── New chat — only create a session if the current one already has messages ──
+  const startNewChat = () => {
+    // If the current active session is already empty, just clear input — don't add a duplicate
+    if (activeSessionId) {
+      const current = sessions.find(s => s.id === activeSessionId);
+      if (current && current.messages.length === 0) {
+        setInput('');
+        setAttachment(null);
+        return;
       }
-    ]);
+    }
 
-    setInputMessage('');
-    const currentAttachment = attachment;
+    const id = `session-${Date.now()}`;
+    const newSession: ChatSession = {
+      id,
+      title: 'New Review',
+      createdAt: new Date().toISOString(),
+      messages: []
+    };
+    setSessions(prev => {
+      const updated = [newSession, ...prev];
+      saveSessions(updated);
+      return updated;
+    });
+    setActiveSessionId(id);
+    setMessages([]);
+    setInput('');
     setAttachment(null);
-    setIsEvaluating(true);
+    setPublishUrl(null);
+  };
+
+  // ── Delete a session ──
+  const deleteSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessions(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      saveSessions(updated);
+      return updated;
+    });
+    if (activeSessionId === id) {
+      const remaining = sessions.filter(s => s.id !== id);
+      if (remaining.length > 0) {
+        switchSession(remaining[0].id);
+      } else {
+        setActiveSessionId(null);
+        setMessages([]);
+      }
+    }
+  };
+
+  // ── Send ──
+  const handleSend = async (overrideText?: string, bypassGuidelinesCheck: boolean = false) => {
+    const rawInput = (overrideText || input).trim();
+    let postCopy = draftText.trim();
+    let descriptionText = '';
+
+    if (postCopy && rawInput) {
+      descriptionText = rawInput;
+    } else if (!postCopy && rawInput) {
+      // Auto-extract trailing or leading goal instructions from single chat box input
+      const lines = rawInput.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const goalRegex = /^(?:this\s+)?(?:post\s+(?:is\s+)?for|campaign\s+goal[:\s]|goal[:\s]|instruction[:\s]|prompt[:\s]|target[:\s]|audit\s+(?:this\s+)?for|for\s+hir(?:ing|eing)|hir(?:ing|eing)\b)(.*)$/i;
+
+      if (lines.length > 1 && goalRegex.test(lines[lines.length - 1])) {
+        descriptionText = lines[lines.length - 1];
+        postCopy = rawInput.slice(0, rawInput.lastIndexOf(lines[lines.length - 1])).trim();
+      } else if (lines.length > 1 && goalRegex.test(lines[0])) {
+        descriptionText = lines[0];
+        postCopy = rawInput.slice(lines[0].length).trim();
+      } else {
+        postCopy = rawInput;
+        descriptionText = '';
+      }
+    }
+
+    if (!postCopy && !attachment) return;
+
+    // Check if guidelines exist, unless user explicitly chose to continue without
+    if (!bypassGuidelinesCheck) {
+      let count = guidelinesCount;
+      if (count === null) {
+        try {
+          const items = await api.getGuidelines();
+          count = items.length;
+          setGuidelinesCount(count);
+        } catch {
+          count = 0;
+          setGuidelinesCount(0);
+        }
+      }
+      if (count === 0) {
+        setPendingSendText(overrideText);
+        setShowNoGuidelinesModal(true);
+        return;
+      }
+    }
+
+    // Ensure we have an active session
+    let sessionId = activeSessionId;
+    if (!sessionId) {
+      const id = `session-${Date.now()}`;
+      const newSession: ChatSession = {
+        id,
+        title: (descriptionText || postCopy).slice(0, 50) || 'New Review',
+        createdAt: new Date().toISOString(),
+        messages: []
+      };
+      setSessions(prev => {
+        const updated = [newSession, ...prev];
+        saveSessions(updated);
+        return updated;
+      });
+      sessionId = id;
+      setActiveSessionId(id);
+    }
+
+    const userMessageId = `user-${Date.now()}`;
+    const assistantMessageId = `assistant-${Date.now()}`;
+    const displayContent = postCopy || (attachment ? `Uploaded file: ${attachment.name}` : '');
+
+    const userMsg: Message = {
+      id: userMessageId,
+      role: 'user',
+      content: displayContent,
+      description: descriptionText || undefined,
+      attachmentName: attachment?.name
+    };
+
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    persistMessages(nextMessages, sessionId);
+
+    setInput('');
+    setDraftText('');
+    setAttachment(null);
+    setLoading(true);
 
     try {
-      // 1. Create the post in backend
-      const title = userText.slice(0, 50).replace(/\n/g, ' ') + (userText.length > 50 ? '...' : '');
-      const postPayload = {
+      const title = displayContent.slice(0, 50).replace(/\n/g, ' ') + (displayContent.length > 50 ? '...' : '');
+      const createdPost = await api.createPost({
         title,
-        body: userText,
+        body: displayContent,
         intent_tags: {
-          target_channel: selectedChannel,
-          target_audience: 'B2B Enterprise Decision Makers & Founders',
-          campaign_goal: 'Thought Leadership',
-          intended_tone: selectedTone,
+          target_channel: 'LinkedIn',
+          target_audience: 'B2B Decision Makers',
+          campaign_goal: descriptionText || 'Campaign Content',
+          user_description: descriptionText || '',
+          intended_tone: 'Attractive & Bold',
           category: 'Social Content'
-        }
-      };
+        } as any
+      });
 
-      const createdPost = await api.createPost(postPayload as any);
-
-      // 2. Evaluate compliance with Gemini RAG
       const report = await api.evaluatePost(createdPost.id);
 
       const updatedPost: Post = {
@@ -152,78 +384,68 @@ export function ReviewQueueView() {
         status: report.verdict === 'APPROVED' ? 'APPROVED' : 'ACTION_REQUIRED'
       };
 
-      // 3. Add AI response to stream
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: aiMsgId,
-          sender: 'ai',
-          text: report.summary || "I have reviewed your post against Kalambe Devs brand rules. Here is the detailed compliance breakdown:",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          post: updatedPost,
-          auditReport: report
+      let polished = displayContent;
+      if (report.violations && report.violations.length > 0) {
+        for (const v of report.violations) {
+          if (v.offending_fragment && v.suggested_fix) {
+            polished = polished.replace(v.offending_fragment, v.suggested_fix);
+          }
         }
-      ]);
-    } catch (err: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: aiMsgId,
-          sender: 'ai',
-          text: `⚠️ Evaluation failed: ${err.message || 'Could not connect to audit service'}. Please ensure the backend is running.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-    } finally {
-      setIsEvaluating(false);
-    }
-  };
-
-  // 1-Click Fix handler inside the AI stream
-  const handleApplyFix = async (msgId: string, violation: Violation) => {
-    const msg = messages.find((m) => m.id === msgId);
-    if (!msg?.post) return;
-
-    setApplyingFixId(violation.id);
-    try {
-      const res = await api.applyOneClickFix({
-        post_id: msg.post.id,
-        violation_id: violation.id,
-        suggested_fix: violation.suggested_fix,
-        offending_fragment: violation.offending_fragment
-      });
-
-      if (res.post) {
-        // Fetch re-evaluated report
-        const updatedReport = await api.getLatestAuditReport(msg.post.id);
-        const newScore = updatedReport?.compliance_score ?? 100;
-        const newVerdict = updatedReport?.verdict ?? 'APPROVED';
-
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.id === msgId) {
-              return {
-                ...m,
-                post: {
-                  ...res.post,
-                  compliance_score: newScore,
-                  status: newVerdict === 'APPROVED' ? 'APPROVED' : 'ACTION_REQUIRED'
-                },
-                auditReport: updatedReport || undefined
-              };
-            }
-            return m;
-          })
-        );
       }
+
+      const assistantMsg: Message = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: report.summary || "I've reviewed your post against the brand guidelines.",
+        post: updatedPost,
+        auditReport: report,
+        fixedContent: polished !== displayContent ? polished : undefined
+      };
+
+      const finalMessages = [...nextMessages, assistantMsg];
+      setMessages(finalMessages);
+      persistMessages(finalMessages, sessionId);
+
     } catch (err: any) {
-      alert('Failed to apply fix: ' + err.message);
+      const errMsg: Message = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: `Sorry, I couldn't audit the post right now: ${err.message || 'Server error'}. Please verify the backend is running.`
+      };
+      const finalMessages = [...nextMessages, errMsg];
+      setMessages(finalMessages);
+      persistMessages(finalMessages, sessionId);
     } finally {
-      setApplyingFixId(null);
+      setLoading(false);
     }
   };
 
-  // 1-Click Publish to LinkedIn
+  const handleModalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingGuideline(true);
+      setUploadError(null);
+      const name = file.name.replace(/\.[^/.]+$/, '');
+      await api.uploadGuidelineFile(file, name);
+      setGuidelinesCount(prev => (prev || 0) + 1);
+      setShowNoGuidelinesModal(false);
+      // Immediately proceed with audit
+      await handleSend(pendingSendText, true);
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload guideline file');
+    } finally {
+      setIsUploadingGuideline(false);
+    }
+  };
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const handlePublishLinkedIn = async (post: Post) => {
     setPublishingId(post.id);
     setPublishUrl(null);
@@ -233,33 +455,20 @@ export function ReviewQueueView() {
       if (li?.external_url) {
         setPublishUrl(li.external_url);
       }
-      // Update local state to published
-      setMessages((prev) =>
-        prev.map((m) => {
-          if (m.post?.id === post.id) {
-            return {
-              ...m,
-              post: { ...m.post, status: 'PUBLISHED' }
-            };
-          }
-          return m;
-        })
-      );
     } catch (err: any) {
-      alert('LinkedIn publish failed: ' + err.message);
+      alert('Failed to publish to LinkedIn: ' + err.message);
     } finally {
       setPublishingId(null);
     }
   };
 
-  // Open Higher-Up Review Modal
-  const openReviewModal = (post: Post) => {
+  const openDispatchModal = (post: Post) => {
     setModalPost(post);
-    setDispatchResults(null);
+    setDispatchSuccess(null);
     setShowReviewModal(true);
   };
 
-  const handleDispatchReview = async (e: React.FormEvent) => {
+  const handleDispatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalPost || reviewChannels.length === 0) return;
     setDispatching(true);
@@ -267,710 +476,776 @@ export function ReviewQueueView() {
       const payload: any = {
         post_id: modalPost.id,
         channels: reviewChannels,
-        reviewer_notes: managerNotes.trim() || `Executive review requested for "${modalPost.title}". Compliance score: ${modalPost.compliance_score || 100}%`
+        reviewer_notes: `Manager review requested for "${modalPost.title}". Score: ${modalPost.compliance_score || 100}%`
       };
       if (managerEmail.trim()) payload.recipient_emails = [managerEmail.trim()];
       if (managerPhone.trim()) payload.recipient_phones = [managerPhone.trim()];
-
       const res = await api.sendForReview(payload);
-      setDispatchResults(res.dispatched_channels || []);
+      setDispatchSuccess(res.dispatched_channels || []);
     } catch (err: any) {
-      alert('Failed to dispatch review: ' + err.message);
+      alert('Dispatch failed: ' + err.message);
     } finally {
       setDispatching(false);
     }
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div 
-      style={{
-        backgroundColor: 'var(--theme-bg)',
-        color: 'var(--theme-text)'
-      }}
-      className="flex flex-col h-[calc(100vh-100px)] rounded-xl border border-[var(--theme-border)] overflow-hidden"
-    >
-      {/* 1. AI Copilot Top Bar */}
-      <div 
+    <div ref={viewContainerRef} className="relative flex h-full w-full bg-white text-slate-900 overflow-hidden">
+
+      {/* ── Mobile History Drawer Backdrop ── */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 transition-opacity"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── History Sidebar ── */}
+      <aside
         style={{
-          backgroundColor: 'var(--theme-surface)',
-          borderColor: 'var(--theme-border)'
+          width: sidebarOpen ? (isMobile ? '260px' : '220px') : '0px',
+          minWidth: sidebarOpen ? (isMobile ? '260px' : '220px') : '0px',
+          transition: 'width 0.2s ease, min-width 0.2s ease',
+          overflow: 'hidden',
+          borderRight: sidebarOpen ? '1px solid #E2E8F0' : 'none',
+          backgroundColor: '#F8FAFC',
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0
         }}
-        className="px-5 py-3 border-b flex items-center justify-between shrink-0"
+        className={isMobile && sidebarOpen ? 'fixed inset-y-0 left-0 z-40 shadow-2xl h-full' : 'relative'}
       >
-        <div className="flex items-center gap-3">
-          <div 
-            style={{
-              backgroundColor: 'rgba(99, 102, 241, 0.15)',
-              color: 'var(--theme-primary)'
-            }}
-            className="h-8 w-8 rounded-lg flex items-center justify-center font-bold"
-          >
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold tracking-tight">AI Post Review Copilot</h2>
-              <span 
-                style={{
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  color: 'var(--theme-success)',
-                  borderColor: 'rgba(16, 185, 129, 0.3)'
-                }}
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+        {/* Sidebar Header — same height as main chat header */}
+        <div className="h-[49px] flex items-center justify-between px-3 border-b border-slate-200 shrink-0 bg-[#F8FAFC]">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            History
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={startNewChat}
+              title="New Chat"
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                title="Close History"
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
               >
-                Kalambe Devs Engine Active
-              </span>
-            </div>
-            <p style={{ color: 'var(--theme-text-secondary)' }} className="text-[11px]">
-              Grounded in official B2B guidelines • Attractive & Bold + Clear & Professional
-            </p>
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Clear chat / New audit session */}
-        <button
-          type="button"
-          onClick={() => setMessages([
-            {
-              id: 'welcome',
-              sender: 'ai',
-              text: "👋 Brand Review Copilot reset. Paste a new post below to run an instant audit!",
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }
-          ])}
-          style={{ borderColor: 'var(--theme-border)' }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer hover:opacity-80 transition-opacity"
-          title="Start fresh audit session"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          <span>New Session</span>
-        </button>
-      </div>
-
-      {/* 2. Chat Messages Stream */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-        {messages.map((msg) => {
-          const isAi = msg.sender === 'ai';
-
-          return (
-            <div
-              key={msg.id}
-              className={`flex gap-3 max-w-4xl mx-auto ${isAi ? 'items-start' : 'items-start flex-row-reverse'}`}
-            >
-              {/* Avatar */}
-              <div 
-                style={{
-                  backgroundColor: isAi ? 'rgba(99, 102, 241, 0.2)' : 'var(--theme-primary)',
-                  color: isAi ? 'var(--theme-primary)' : '#ffffff'
-                }}
-                className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs shadow-xs"
+        {/* Session List */}
+        <div className="flex-1 overflow-y-auto py-1.5 space-y-0.5 px-1.5">
+          {sessions.length === 0 ? (
+            <div className="px-2 py-6 text-center">
+              <Clock className="h-5 w-5 text-slate-300 mx-auto mb-2" />
+              <p className="text-[11px] text-slate-400">No history yet</p>
+            </div>
+          ) : (
+            sessions.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => switchSession(s.id)}
+                className={`w-full text-left px-2.5 py-2 rounded-lg transition-colors cursor-pointer group flex items-start justify-between gap-1.5 ${
+                  s.id === activeSessionId
+                    ? 'bg-blue-50 text-blue-900'
+                    : 'hover:bg-slate-100 text-slate-700'
+                }`}
               >
-                {isAi ? <Sparkles className="h-4 w-4" /> : 'You'}
-              </div>
-
-              {/* Message Content */}
-              <div className={`space-y-3 max-w-[85%] ${isAi ? 'w-full' : ''}`}>
-                {/* Text Bubble */}
-                <div
-                  style={{
-                    backgroundColor: isAi ? 'var(--theme-surface)' : 'var(--theme-primary)',
-                    color: isAi ? 'var(--theme-text)' : '#ffffff',
-                    borderColor: isAi ? 'var(--theme-border)' : 'transparent'
-                  }}
-                  className={`p-4 rounded-2xl border shadow-xs text-xs leading-relaxed whitespace-pre-wrap ${
-                    isAi ? 'rounded-tl-xs' : 'rounded-tr-xs'
-                  }`}
-                >
-                  {/* Meta tags for user messages */}
-                  {!isAi && msg.channel && (
-                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/20 text-[10px] font-bold">
-                      <span>Channel: {msg.channel}</span>
-                      <span>•</span>
-                      <span>Tone: Attractive & Bold</span>
-                    </div>
-                  )}
-
-                  {msg.text}
-
-                  {msg.attachmentName && (
-                    <div className="mt-2 pt-2 border-t border-white/20 flex items-center gap-1.5 text-[11px] font-semibold">
-                      <FileText className="h-3.5 w-3.5" />
-                      <span>{msg.attachmentName}</span>
-                    </div>
-                  )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-semibold truncate leading-tight">
+                    {s.title}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    {formatRelative(s.createdAt)}
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={(e) => deleteSession(s.id, e)}
+                  className="opacity-0 group-hover:opacity-100 h-5 w-5 shrink-0 rounded flex items-center justify-center hover:text-rose-600 transition-all cursor-pointer mt-0.5"
+                  title="Delete session"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
 
-                {/* AI Interactive Audit Card */}
-                {isAi && msg.post && (
-                  <div 
-                    style={{
-                      backgroundColor: 'var(--theme-surface)',
-                      borderColor: 'var(--theme-border)'
-                    }}
-                    className="p-4 sm:p-5 rounded-2xl border shadow-md space-y-4 animate-in fade-in duration-300"
-                  >
-                    {/* Header Score & Verdict */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--theme-border)]">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          style={{
-                            backgroundColor: (msg.post.compliance_score || 0) >= 90 
-                              ? 'rgba(16, 185, 129, 0.15)' 
-                              : 'rgba(245, 158, 11, 0.15)',
-                            borderColor: (msg.post.compliance_score || 0) >= 90 
-                              ? 'rgba(16, 185, 129, 0.3)' 
-                              : 'rgba(245, 158, 11, 0.3)',
-                            color: (msg.post.compliance_score || 0) >= 90 
-                              ? 'var(--theme-success)' 
-                              : 'var(--theme-warning)'
-                          }}
-                          className="h-12 w-12 rounded-xl border flex flex-col items-center justify-center font-bold font-mono shrink-0"
-                        >
-                          <span className="text-sm">{msg.post.compliance_score || 100}%</span>
-                          <span className="text-[8px] uppercase tracking-tighter">Score</span>
-                        </div>
+      {/* ── Main Chat Area ── */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-white">
 
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span 
-                              style={{
-                                backgroundColor: (msg.post.compliance_score || 0) >= 90 
-                                  ? 'rgba(16, 185, 129, 0.15)' 
-                                  : 'rgba(245, 158, 11, 0.15)',
-                                color: (msg.post.compliance_score || 0) >= 90 
-                                  ? 'var(--theme-success)' 
-                                  : 'var(--theme-warning)'
-                              }}
-                              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                            >
-                              {msg.post.status === 'PUBLISHED' ? '🚀 LIVE ON LINKEDIN' : (msg.post.compliance_score || 0) >= 90 ? '✅ 100% BRAND COMPLIANT' : '⚠️ ACTION REQUIRED'}
-                            </span>
-                            <span style={{ color: 'var(--theme-text-secondary)' }} className="text-[11px]">
-                              {msg.post.intent_tags?.target_channel || 'LinkedIn'}
-                            </span>
-                          </div>
-                          <h4 style={{ color: 'var(--theme-text)' }} className="text-xs font-bold mt-1">
-                            {msg.post.title}
-                          </h4>
-                        </div>
+        {/* Header — fixed height matches sidebar header exactly */}
+        <header className="h-[49px] px-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
+          <div className="flex items-center gap-2">
+            {/* Toggle sidebar button */}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(o => !o)}
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              title={sidebarOpen ? 'Hide history' : 'Show history'}
+            >
+              {sidebarOpen
+                ? <PanelLeftClose className="h-4 w-4" />
+                : <PanelLeftOpen className="h-4 w-4" />
+              }
+            </button>
+            <span className="font-bold text-sm text-slate-900 tracking-tight">FixoraAI</span>
+            <span className="text-[11px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-medium">
+              Post Review
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={startNewChat}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-slate-100"
+            title="New Review Session"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>New Chat</span>
+          </button>
+        </header>
+
+        {/* Messages Stream */}
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-6 bg-white">
+          {messages.length === 0 ? (
+            /* Empty State */
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-16">
+              <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs mx-auto">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  What would you like to review?
+                </h2>
+                <p className="text-xs text-slate-500 mt-1.5 max-w-md leading-relaxed mx-auto">
+                  Upload or paste your post draft below, then specify your campaign goal to audit tone, legal compliance, and goal alignment.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempDraftInput(draftText);
+                  setShowDraftModal(true);
+                }}
+                className="mt-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors shadow-2xs"
+              >
+                <FileText className="h-4 w-4" />
+                <span>{draftText ? 'Edit Attached Post Draft' : 'Attach Post Draft to Audit'}</span>
+              </button>
+            </div>
+          ) : (
+            /* Message Thread */
+            <div className="w-full space-y-6">
+              {messages.map((m) => {
+                const isUser = m.role === 'user';
+
+                return (
+                  <div key={m.id} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                    {!isUser && (
+                      <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold shadow-xs">
+                        <Sparkles className="h-4 w-4" />
                       </div>
+                    )}
 
-                      {/* Top Action Pills */}
-                      <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(msg.post?.body || '', msg.id)}
-                          style={{ borderColor: 'var(--theme-border)' }}
-                          className="p-2 rounded-lg border text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                          title="Copy post body"
-                        >
-                          {copiedId === msg.id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                    </div>
+                    <div className={`space-y-3 ${isUser ? 'max-w-[85%] w-full' : 'max-w-[90%] w-full'}`}>
+                      {isUser ? (
+                        <div className="space-y-2">
+                          {/* Goal / Description prompt chip */}
+                          {m.description && (
+                            <div className="flex items-start gap-2 text-xs bg-slate-100 border border-slate-300 px-3.5 py-2 rounded-xl text-slate-700 w-fit ml-auto shadow-2xs">
+                              <span className="font-bold text-slate-900 shrink-0">🎯 Goal:</span>
+                              <span className="italic text-slate-800">&ldquo;{m.description}&rdquo;</span>
+                            </div>
+                          )}
 
-                    {/* Cited Violations Breakdown */}
-                    {msg.auditReport?.violations && msg.auditReport.violations.length > 0 ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-amber-500">
-                          <span>Rule Violations Detected ({msg.auditReport.violations.length})</span>
-                          <span>Click to auto-correct</span>
-                        </div>
-
-                        <div className="space-y-2.5">
-                          {msg.auditReport.violations.map((violation) => {
-                            const isCritical = violation.severity === 'CRITICAL';
-                            const badgeColor = isCritical
-                              ? 'bg-red-500/10 text-red-400 border-red-500/30'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-
-                            return (
-                              <div
-                                key={violation.id}
-                                style={{ borderColor: 'var(--theme-border)' }}
-                                className="p-3.5 rounded-xl border bg-black/20 space-y-2"
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badgeColor}`}>
-                                      {violation.category.replace('_', ' ')}
-                                    </span>
-                                    <span style={{ color: 'var(--theme-text-secondary)' }} className="text-[10px]">
-                                      {violation.document_name} • Page {violation.page_ref}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] font-semibold text-slate-400">
-                                    Rule: {violation.rule_title}
-                                  </span>
-                                </div>
-
-                                {/* Offending text fragment */}
-                                <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-400">
-                                  <span className="font-bold text-red-300">Offending fragment: </span>
-                                  &ldquo;{violation.offending_fragment}&rdquo;
-                                </div>
-
-                                <p style={{ color: 'var(--theme-text-secondary)' }} className="text-[11px] leading-relaxed">
-                                  {violation.violation_explanation}
-                                </p>
-
-                                {/* 1-Click Fix Button */}
-                                <div className="flex items-center justify-between pt-1">
-                                  <div className="text-[11px] text-emerald-400 font-medium truncate max-w-[70%]">
-                                    <span className="font-bold text-emerald-300">Fix: </span>
-                                    &ldquo;{violation.suggested_fix}&rdquo;
-                                  </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApplyFix(msg.id, violation)}
-                                    disabled={applyingFixId === violation.id}
-                                    style={{
-                                      backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                                      color: 'var(--theme-primary)',
-                                      borderColor: 'rgba(99, 102, 241, 0.4)'
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 hover:brightness-110 transition-all cursor-pointer disabled:opacity-50"
-                                  >
-                                    {applyingFixId === violation.id ? (
-                                      <div className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                                    ) : (
-                                      <Wand2 className="h-3 w-3" />
-                                    )}
-                                    <span>1-Click Apply</span>
-                                  </button>
-                                </div>
+                          {/* Styled Social Post Card */}
+                          <div className="rounded-2xl border border-slate-300 bg-white shadow-xs overflow-hidden text-left">
+                          {/* Post Card Header */}
+                          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="h-6 w-6 rounded-md bg-[#0A66C2] text-white font-bold text-[10px] flex items-center justify-center">
+                                in
                               </div>
-                            );
-                          })}
+                              <span className="font-bold text-slate-900 text-xs">Draft Post</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                                LinkedIn
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                              <span>
+                                {m.content.trim().split(/\s+/).filter(Boolean).length} words • {m.content.length} chars
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(m.content, m.id)}
+                                className="text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                                title="Copy post text"
+                              >
+                                {copiedId === m.id ? (
+                                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Post Body with multi-line paragraph formatting */}
+                          <div className="p-4 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap select-text font-normal">
+                            {renderFormattedPost(m.content)}
+                          </div>
+
+                          {m.attachmentName && (
+                            <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-200 flex items-center gap-1.5 text-[11px] text-blue-700 font-medium">
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>{m.attachmentName}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />
-                        <span>Zero violations! This post is 100% compliant with Kalambe Devs guidelines and ready to post.</span>
-                      </div>
-                    )}
+                        <div className="pt-1 pb-1 text-slate-800 text-xs leading-relaxed whitespace-pre-wrap">
+                          {m.content}
+                        </div>
+                      )}
 
-                    {/* Published Link Notification */}
-                    {publishUrl && (
-                      <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-400 flex items-center justify-between">
-                        <span>🚀 Successfully published to your LinkedIn profile!</span>
-                        <a
-                          href={publishUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-bold underline flex items-center gap-1"
-                        >
-                          <span>View on LinkedIn</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    )}
+                      {/* AI Assessment Card */}
+                      {!isUser && m.post && (
+                        <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 shadow-xs space-y-4">
+                          {/* Score & Verdict */}
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                            <div className="flex items-center gap-2">
+                              <span 
+                                className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
+                                  (m.post.compliance_score || 0) >= 90
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : (m.post.compliance_score || 0) >= 70
+                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}
+                              >
+                                <span>{m.post.compliance_score || 0}%</span>
+                                <span>•</span>
+                                <span>
+                                  {(m.post.compliance_score || 0) >= 90 
+                                    ? 'Brand Compliant' 
+                                    : (m.post.compliance_score || 0) >= 70
+                                      ? 'Action Required'
+                                      : 'Rejected'}
+                                </span>
+                              </span>
+                            </div>
 
-                    {/* Action Hub */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--theme-border)]">
-                      <div className="flex items-center gap-2">
-                        {/* Higher-Up Review Dispatch */}
-                        <button
-                          type="button"
-                          onClick={() => openReviewModal(msg.post!)}
-                          style={{ borderColor: 'var(--theme-border)' }}
-                          className="px-3.5 py-2 rounded-lg border text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
-                        >
-                          <Send className="h-3.5 w-3.5 text-indigo-400" />
-                          <span>Send to Higher-Ups (WhatsApp, Gmail, Teams)</span>
-                        </button>
-                      </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(m.fixedContent || m.post?.body || '', m.id)}
+                              className="p-1.5 rounded-md hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer text-xs flex items-center gap-1"
+                              title="Copy text"
+                            >
+                              {copiedId === m.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                              <span>{copiedId === m.id ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
 
-                      {/* 1-Click Publish to LinkedIn */}
-                      <button
-                        type="button"
-                        onClick={() => handlePublishLinkedIn(msg.post!)}
-                        disabled={publishingId === msg.post.id}
-                        style={{ backgroundColor: '#0A66C2', color: '#ffffff' }}
-                        className="px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm hover:brightness-110 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {publishingId === msg.post.id ? (
-                          <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                        ) : (
-                          <Share2 className="h-3.5 w-3.5" />
-                        )}
-                        <span>{publishingId === msg.post.id ? 'Publishing...' : 'Publish to LinkedIn'}</span>
-                      </button>
+                          {/* Violations */}
+                          {m.auditReport?.violations && m.auditReport.violations.length > 0 ? (
+                            <div className="space-y-2.5">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                                Points to improve ({m.auditReport.violations.length}):
+                              </div>
+                              {m.auditReport.violations.map((v) => (
+                                <div 
+                                  key={v.id} 
+                                  className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 space-y-1.5 text-xs text-slate-800"
+                                >
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold text-amber-900">{v.rule_title}</span>
+                                    <span className="text-slate-500 font-medium">
+                                      {v.document_name} • p.{v.page_ref}
+                                    </span>
+                                  </div>
+                                  <div className="text-rose-700 font-semibold text-[11px]">
+                                    &ldquo;{v.offending_fragment}&rdquo;
+                                  </div>
+                                  <div className="text-slate-600 text-[11px] leading-relaxed">
+                                    {v.violation_explanation}
+                                  </div>
+                                  <div className="text-emerald-700 font-bold text-[11px]">
+                                    Suggestion: &ldquo;{v.suggested_fix}&rdquo;
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 py-1">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                              <span>This post meets all your brand guidelines!</span>
+                            </div>
+                          )}
+
+                          {/* Multimodal Gemini Vision Visual Inspection Card */}
+                          {m.auditReport?.visual_audit && (
+                            <div className="p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/60 space-y-2 text-xs">
+                              <div className="flex items-center justify-between text-[11px] font-bold">
+                                <span className="flex items-center gap-1.5 text-indigo-950">
+                                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                                  Multimodal Visual Inspection (Gemini Vision)
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-100/80 text-indigo-700 text-[10px] font-semibold">
+                                  {m.auditReport.visual_audit.image_text_alignment || 'Aligned'}
+                                </span>
+                              </div>
+
+                              {m.auditReport.visual_audit.visual_summary && (
+                                <p className="text-[11px] text-slate-600 leading-relaxed italic">
+                                  &ldquo;{m.auditReport.visual_audit.visual_summary}&rdquo;
+                                </p>
+                              )}
+
+                              <div className="grid grid-cols-3 gap-2 pt-1 text-[10px]">
+                                <div className="p-2 rounded-lg bg-white/90 border border-indigo-100">
+                                  <span className="text-slate-400 block font-medium">Palette</span>
+                                  <span className={`font-bold ${m.auditReport.visual_audit.palette_compliance === 'Compliant' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                    {m.auditReport.visual_audit.palette_compliance || 'Compliant'}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white/90 border border-indigo-100">
+                                  <span className="text-slate-400 block font-medium">Typography</span>
+                                  <span className="font-bold text-slate-800">
+                                    {m.auditReport.visual_audit.typography_legibility || 'High'}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white/90 border border-indigo-100">
+                                  <span className="text-slate-400 block font-medium">Layout</span>
+                                  <span className="font-bold text-slate-800">
+                                    {m.auditReport.visual_audit.layout_balance || 'Balanced'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Polished Version */}
+                          {m.fixedContent && (
+                            <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                                Polished Compliant Version:
+                              </span>
+                              <div className="p-3.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+                                {m.fixedContent}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Published notification */}
+                          {publishUrl && (
+                            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700 flex items-center justify-between">
+                              <span>🚀 Published to LinkedIn!</span>
+                              <a
+                                href={publishUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-bold underline flex items-center gap-1"
+                              >
+                                <span>View Post</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          )}
+
+                          {/* Actions Footer */}
+                          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => openDispatchModal(m.post!)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 text-xs font-semibold cursor-pointer transition-colors"
+                            >
+                              Send for Review
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handlePublishLinkedIn(m.post!)}
+                              disabled={publishingId === m.post.id}
+                              className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0A66C2] hover:bg-[#084e96] flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
+                            >
+                              <Share2 className="h-3.5 w-3.5" />
+                              <span>{publishingId === m.post.id ? 'Publishing...' : 'Publish to LinkedIn'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+                );
+              })}
 
-                <div 
-                  style={{ color: 'var(--theme-text-secondary)' }}
-                  className={`text-[10px] px-1 ${isAi ? 'text-left' : 'text-right'}`}
-                >
-                  {msg.timestamp}
+              {loading && (
+                <div className="flex gap-3 items-center text-xs text-slate-500">
+                  <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-4 w-4 animate-spin" />
+                  </div>
+                  <span>Auditing post against brand guidelines...</span>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Input Bar */}
+        <div className="w-full px-3 sm:px-6 pb-20 lg:pb-4 pt-1 shrink-0 bg-white flex flex-col justify-end space-y-2">
+          
+          {/* Post Draft Dock: Attached State or Call to Action */}
+          {draftText ? (
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs text-slate-800 shadow-2xs gap-2">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="h-7 w-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-blue-950 text-xs">Attached Post Draft</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-blue-100 text-blue-800 font-medium">
+                      {draftText.trim().split(/\s+/).filter(Boolean).length} words
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                    {draftText.replace(/\n+/g, ' ')}
+                  </p>
                 </div>
               </div>
-            </div>
-          );
-        })}
 
-        {/* Evaluating Thinking Bubble */}
-        {isEvaluating && (
-          <div className="flex gap-3 max-w-4xl mx-auto items-start animate-in fade-in duration-200">
-            <div 
-              style={{
-                backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                color: 'var(--theme-primary)'
-              }}
-              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 font-bold text-xs"
-            >
-              <Sparkles className="h-4 w-4 animate-spin" />
-            </div>
-            <div 
-              style={{
-                backgroundColor: 'var(--theme-surface)',
-                borderColor: 'var(--theme-border)'
-              }}
-              className="p-4 rounded-2xl rounded-tl-xs border shadow-xs space-y-2 text-xs"
-            >
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                <span className="font-bold text-indigo-400">Auditing with Gemini 3.8 Flash & Kalambe Devs pgvector...</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempDraftInput(draftText);
+                    setShowDraftModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDraftText('')}
+                  className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  title="Remove attached draft"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <p style={{ color: 'var(--theme-text-secondary)' }} className="text-[11px]">
-                Checking brand tone (Attractive & Bold + Clear & Professional), claims substantiation, and competitor policy.
-              </p>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center justify-between px-3 sm:px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs gap-2">
+              <div className="flex items-center gap-1.5 text-slate-600 truncate min-w-0">
+                <span className="text-[11px] font-bold text-slate-700 shrink-0">Post Draft:</span>
+                <span className="text-[11px] text-slate-500 truncate hidden sm:inline">Attach post copy to audit against rules</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTempDraftInput('');
+                  setShowDraftModal(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white border border-blue-300 hover:bg-blue-50 text-blue-700 font-bold text-[11px] sm:text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Attach / Paste Draft</span>
+              </button>
+            </div>
+          )}
 
-        <div ref={chatBottomRef} />
-      </div>
+          {attachment && (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-xs text-blue-700 w-fit">
+              <FileText className="h-3.5 w-3.5" />
+              <span className="font-medium truncate max-w-xs">{attachment.name}</span>
+              <button
+                type="button"
+                onClick={() => setAttachment(null)}
+                className="hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
 
-      {/* 3. Quick Prompt Chips */}
-      <div 
-        style={{
-          borderColor: 'var(--theme-border)'
-        }}
-        className="px-4 py-2 border-t flex flex-wrap items-center gap-2 shrink-0 bg-black/10"
-      >
-        <span style={{ color: 'var(--theme-text-secondary)' }} className="text-[11px] font-bold">Quick test prompts:</span>
-        <button
-          type="button"
-          onClick={() => handleLoadSample('b2b')}
-          style={{ borderColor: 'var(--theme-border)' }}
-          className="px-2.5 py-1 rounded-md border text-[11px] font-semibold cursor-pointer hover:border-indigo-500 transition-colors"
-        >
-          ⚡ Kalambe Devs B2B Architecture
-        </button>
-        <button
-          type="button"
-          onClick={() => handleLoadSample('claims')}
-          style={{ borderColor: 'var(--theme-border)' }}
-          className="px-2.5 py-1 rounded-md border text-[11px] font-semibold cursor-pointer hover:border-amber-500 transition-colors"
-        >
-          ⚠️ Test Competitor & Overclaim Policy
-        </button>
-        <button
-          type="button"
-          onClick={() => handleLoadSample('tone')}
-          style={{ borderColor: 'var(--theme-border)' }}
-          className="px-2.5 py-1 rounded-md border text-[11px] font-semibold cursor-pointer hover:border-purple-500 transition-colors"
-        >
-          ✍️ Test Weak Tone
-        </button>
-      </div>
+          {/* Gemini Pill – Multi-line Auto-expanding Goal / Prompt Input */}
+          <div
+            style={{ 
+              minHeight: `${pillHeight}px`,
+              backgroundColor: '#F0F4F9'
+            }}
+            className="w-full rounded-3xl border border-slate-300 shadow-xs flex items-center px-5 py-2.5 gap-3.5 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all"
+          >
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.docx,.pdf,.png,.jpg"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  const file = e.target.files[0];
+                  if (file.name.endsWith('.txt') || file.type.includes('text')) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const text = (ev.target?.result as string) || '';
+                      setDraftText(text);
+                      setTempDraftInput(text);
+                    };
+                    reader.readAsText(file);
+                  } else {
+                    setAttachment(file);
+                  }
+                }
+              }}
+              className="hidden"
+            />
 
-      {/* 4. Chat Input Section */}
-      <div 
-        style={{
-          backgroundColor: 'var(--theme-surface)',
-          borderColor: 'var(--theme-border)'
-        }}
-        className="p-3 sm:p-4 border-t shrink-0 space-y-2.5 shadow-lg"
-      >
-        {/* Attachment Pill */}
-        {attachment && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-300 w-fit">
-            <FileText className="h-3.5 w-3.5" />
-            <span className="font-semibold truncate max-w-xs">{attachment.name}</span>
+            {/* + button opens Post Draft Modal */}
             <button
               type="button"
-              onClick={() => setAttachment(null)}
-              className="hover:text-white transition-colors cursor-pointer"
+              onClick={() => {
+                setTempDraftInput(draftText);
+                setShowDraftModal(true);
+              }}
+              className="h-10 w-10 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer shrink-0 self-center"
+              title="Attach post draft or upload file"
             >
-              <X className="h-3.5 w-3.5" />
+              <Plus className="h-6 w-6" strokeWidth={1.75} />
             </button>
-          </div>
-        )}
 
-        {/* Text Input Row */}
-        <div className="flex items-end gap-2">
-          {/* File attach button */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,.docx,.pdf,.png,.jpg"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                setAttachment(e.target.files[0]);
-              }
-            }}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              backgroundColor: 'var(--theme-bg)',
-              borderColor: 'var(--theme-border)'
-            }}
-            className="h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-            title="Attach draft file or image creative"
-          >
-            <Plus className="h-5 w-5 text-slate-400" />
-          </button>
-
-          {/* Textarea */}
-          <div className="flex-1 relative">
+            {/* Multi-line auto-expanding Textarea for Description / Campaign Goal */}
             <textarea
               ref={textareaRef}
-              rows={2}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSendMessage();
+                  handleSend();
                 }
               }}
-              placeholder="Paste draft post or ask FixoraAI to audit your content… (Press Enter to audit, Shift+Enter for newline)"
-              className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 resize-none max-h-36"
+              placeholder={
+                draftText
+                  ? "Enter campaign goal or description (e.g. 'this post is for hiring C developers for our new game')..."
+                  : "Enter campaign goal or description (or attach a draft post above)..."
+              }
+              rows={1}
+              style={{
+                backgroundColor: 'transparent',
+                outline: 'none',
+                border: 'none',
+                boxShadow: 'none',
+                resize: 'none',
+                maxHeight: '180px'
+              }}
+              className="flex-1 transparent-input text-[15px] leading-relaxed text-slate-900 placeholder:text-slate-500 font-normal py-1.5 focus:outline-none focus:ring-0 focus:border-none"
             />
-          </div>
 
-          {/* Send Button */}
-          <button
-            type="button"
-            onClick={handleSendMessage}
-            disabled={(!inputMessage.trim() && !attachment) || isEvaluating}
-            style={{ backgroundColor: 'var(--theme-primary)', color: '#ffffff' }}
-            className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Run AI Review"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Channel & Controls Row */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-1.5">
-            <span style={{ color: 'var(--theme-text-secondary)' }} className="text-[10px] font-bold uppercase tracking-wider">
-              Channel:
-            </span>
-            {(['LinkedIn', 'Twitter', 'Facebook', 'Instagram'] as const).map((ch) => (
+            {/* Mic & Send */}
+            <div className="flex items-center gap-2 shrink-0 self-center">
               <button
-                key={ch}
                 type="button"
-                onClick={() => setSelectedChannel(ch)}
-                style={{
-                  backgroundColor: selectedChannel === ch ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                  borderColor: selectedChannel === ch ? 'var(--theme-primary)' : 'var(--theme-border)',
-                  color: selectedChannel === ch ? 'var(--theme-primary)' : 'var(--theme-text-secondary)'
-                }}
-                className="px-2.5 py-1 rounded-md border text-[10px] font-bold cursor-pointer transition-colors"
+                className="h-10 w-10 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-200/80 transition-colors cursor-pointer"
+                title="Voice Input"
               >
-                {ch}
+                <Mic className="h-5 w-5" strokeWidth={1.75} />
               </button>
-            ))}
+
+              {(input.trim() || draftText.trim() || attachment) && (
+                <button
+                  type="button"
+                  onClick={() => handleSend()}
+                  disabled={loading}
+                  className="h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  title="Send (Enter)"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div style={{ color: 'var(--theme-text-secondary)' }} className="text-[10px] font-semibold">
-            Tone: <span className="text-indigo-400 font-bold">Attractive & Bold + Clear & Professional</span>
-          </div>
+          <p className="text-[10px] text-center text-slate-400 mt-1.5">
+            FixoraAI audits posts against official brand rules. Always review before publishing.
+          </p>
         </div>
       </div>
 
-      {/* 5. Higher-Up Multi-Channel Review Modal */}
-      {showReviewModal && modalPost && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div 
-            style={{ backgroundColor: 'var(--theme-surface)', borderColor: 'var(--theme-border)' }}
-            className="rounded-2xl border shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col"
-          >
-            {/* Header */}
-            <div 
-              style={{ borderColor: 'var(--theme-border)' }}
-              className="p-4 border-b flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2.5">
-                <div 
-                  style={{ backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--theme-primary)' }}
-                  className="h-8 w-8 rounded-lg flex items-center justify-center"
-                >
-                  <Send className="h-4 w-4" />
+      {/* ── Add / Edit Post Draft Modal ── */}
+      {showDraftModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col text-xs text-slate-800">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                  <FileText className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 style={{ color: 'var(--theme-text)' }} className="text-sm font-bold">Send to Higher-Ups for Approval</h3>
-                  <p style={{ color: 'var(--theme-text-secondary)' }} className="text-[11px]">Dispatch draft & citations via WhatsApp, Gmail, Slack & Teams</p>
+                  <h3 className="font-bold text-sm text-slate-900">Upload or Paste Post Draft</h3>
+                  <p className="text-[11px] text-slate-500">
+                    FixoraAI will preserve all lines, emojis, and hashtags for auditing
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowReviewModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition-colors cursor-pointer"
+                onClick={() => setShowDraftModal(false)}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Body */}
-            <form onSubmit={handleDispatchReview} className="p-5 overflow-y-auto space-y-4">
-              {/* Draft info */}
-              <div 
-                style={{ borderColor: 'var(--theme-border)' }}
-                className="p-3 rounded-xl border bg-black/20"
-              >
-                <div style={{ color: 'var(--theme-text-secondary)' }} className="text-[10px] font-bold uppercase tracking-wider">
-                  Post to Dispatch
-                </div>
-                <div style={{ color: 'var(--theme-text)' }} className="text-xs font-bold truncate mt-0.5">
-                  {modalPost.title}
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
-                    Score: {modalPost.compliance_score || 100}%
-                  </span>
-                  <span style={{ color: 'var(--theme-text-secondary)' }} className="text-[10px]">
-                    Channel: {modalPost.intent_tags?.target_channel || 'LinkedIn'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Channels Selector */}
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto">
               <div>
-                <label style={{ color: 'var(--theme-text)' }} className="text-[11px] font-bold uppercase tracking-wider block mb-2">
-                  Select Dispatch Channels ({reviewChannels.length} active)
+                <label className="font-bold block mb-1 text-[11px] uppercase tracking-wider text-slate-600">
+                  Post Copy
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {/* WhatsApp */}
-                  <div
-                    onClick={() => {
-                      setReviewChannels((prev) =>
-                        prev.includes('WHATSAPP') ? prev.filter((c) => c !== 'WHATSAPP') : [...prev, 'WHATSAPP']
-                      );
-                    }}
-                    style={{
-                      borderColor: reviewChannels.includes('WHATSAPP') ? '#10B981' : 'var(--theme-border)',
-                      backgroundColor: reviewChannels.includes('WHATSAPP') ? 'rgba(16, 185, 129, 0.1)' : 'transparent'
-                    }}
-                    className="p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <MessageCircle className="h-4 w-4 text-emerald-500" />
-                      <div>
-                        <div style={{ color: 'var(--theme-text)' }} className="text-xs font-bold">WhatsApp</div>
-                        <div style={{ color: 'var(--theme-text-secondary)' }} className="text-[9px]">Direct mobile alert</div>
-                      </div>
-                    </div>
-                    {reviewChannels.includes('WHATSAPP') && <Check className="h-3.5 w-3.5 text-emerald-500" />}
-                  </div>
-
-                  {/* Gmail */}
-                  <div
-                    onClick={() => {
-                      setReviewChannels((prev) =>
-                        prev.includes('GMAIL') ? prev.filter((c) => c !== 'GMAIL') : [...prev, 'GMAIL']
-                      );
-                    }}
-                    style={{
-                      borderColor: reviewChannels.includes('GMAIL') ? '#EF4444' : 'var(--theme-border)',
-                      backgroundColor: reviewChannels.includes('GMAIL') ? 'rgba(239, 68, 68, 0.1)' : 'transparent'
-                    }}
-                    className="p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-rose-500" />
-                      <div>
-                        <div style={{ color: 'var(--theme-text)' }} className="text-xs font-bold">Gmail</div>
-                        <div style={{ color: 'var(--theme-text-secondary)' }} className="text-[9px]">Executive HTML card</div>
-                      </div>
-                    </div>
-                    {reviewChannels.includes('GMAIL') && <Check className="h-3.5 w-3.5 text-rose-500" />}
-                  </div>
-
-                  {/* Slack */}
-                  <div
-                    onClick={() => {
-                      setReviewChannels((prev) =>
-                        prev.includes('SLACK') ? prev.filter((c) => c !== 'SLACK') : [...prev, 'SLACK']
-                      );
-                    }}
-                    style={{
-                      borderColor: reviewChannels.includes('SLACK') ? '#8B5CF6' : 'var(--theme-border)',
-                      backgroundColor: reviewChannels.includes('SLACK') ? 'rgba(139, 92, 246, 0.1)' : 'transparent'
-                    }}
-                    className="p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-purple-500" />
-                      <div>
-                        <div style={{ color: 'var(--theme-text)' }} className="text-xs font-bold">Slack</div>
-                        <div style={{ color: 'var(--theme-text-secondary)' }} className="text-[9px]">Block Kit Review</div>
-                      </div>
-                    </div>
-                    {reviewChannels.includes('SLACK') && <Check className="h-3.5 w-3.5 text-purple-500" />}
-                  </div>
-
-                  {/* Teams */}
-                  <div
-                    onClick={() => {
-                      setReviewChannels((prev) =>
-                        prev.includes('TEAMS') ? prev.filter((c) => c !== 'TEAMS') : [...prev, 'TEAMS']
-                      );
-                    }}
-                    style={{
-                      borderColor: reviewChannels.includes('TEAMS') ? '#3B82F6' : 'var(--theme-border)',
-                      backgroundColor: reviewChannels.includes('TEAMS') ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
-                    }}
-                    className="p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-blue-500" />
-                      <div>
-                        <div style={{ color: 'var(--theme-text)' }} className="text-xs font-bold">MS Teams</div>
-                        <div style={{ color: 'var(--theme-text-secondary)' }} className="text-[9px]">Adaptive Card</div>
-                      </div>
-                    </div>
-                    {reviewChannels.includes('TEAMS') && <Check className="h-3.5 w-3.5 text-blue-500" />}
-                  </div>
+                <textarea
+                  value={tempDraftInput}
+                  onChange={(e) => setTempDraftInput(e.target.value)}
+                  placeholder="Paste your full LinkedIn post, tweet, or draft here...&#10;&#10;🚀 We're Hiring at FixoraAI!&#10;&#10;We're looking for:&#10;🧠 AI/ML Engineers&#10;..."
+                  rows={10}
+                  className="w-full p-3.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-xs text-slate-900 placeholder:text-slate-400 leading-relaxed font-normal resize-y select-text"
+                />
+                <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
+                  <span>
+                    {tempDraftInput.trim().split(/\s+/).filter(Boolean).length} words • {tempDraftInput.length} characters
+                  </span>
+                  {tempDraftInput && (
+                    <button
+                      type="button"
+                      onClick={() => setTempDraftInput('')}
+                      className="text-slate-500 hover:text-rose-600 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Direct WhatsApp & Email shortcuts */}
+              {/* File upload option */}
+              <div className="p-3.5 rounded-xl border border-dashed border-slate-300 bg-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <FileUp className="h-5 w-5 text-slate-500" />
+                  <div>
+                    <div className="font-semibold text-slate-800 text-[11px]">Upload from document</div>
+                    <div className="text-[10px] text-slate-500">Supports .txt, .docx, .pdf, or images</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold text-xs cursor-pointer"
+                >
+                  Choose File
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2.5 p-4 border-t border-slate-200 bg-slate-50/60">
+              <button
+                type="button"
+                onClick={() => setShowDraftModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 font-semibold cursor-pointer text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftText(tempDraftInput);
+                  setShowDraftModal(false);
+                }}
+                disabled={!tempDraftInput.trim() && !attachment}
+                className="px-5 py-2 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 cursor-pointer text-xs shadow-xs transition-colors"
+              >
+                Attach Post Draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dispatch Modal ── */}
+      {showReviewModal && modalPost && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col text-xs text-slate-800">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-sm text-slate-900">Send to Higher-Ups for Approval</h3>
+              <button
+                type="button"
+                onClick={() => setShowReviewModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleDispatch} className="p-5 space-y-4 overflow-y-auto">
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                <div className="text-[10px] font-bold uppercase text-slate-500">Post</div>
+                <div className="font-semibold truncate text-slate-900 mt-0.5">{modalPost.title}</div>
+                <div className="text-[11px] text-emerald-700 font-bold mt-1">Score: {modalPost.compliance_score || 100}%</div>
+              </div>
+
+              <div>
+                <label className="font-bold block mb-2 uppercase text-[10px] text-slate-600">Channels</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['WHATSAPP', 'GMAIL', 'SLACK', 'TEAMS'] as const).map((ch) => (
+                    <div
+                      key={ch}
+                      onClick={() => setReviewChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch])}
+                      className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${
+                        reviewChannels.includes(ch) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="font-semibold">{ch}</span>
+                      {reviewChannels.includes(ch) && <Check className="h-3 w-3 text-blue-600" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {reviewChannels.includes('WHATSAPP') && (
                 <div>
-                  <label style={{ color: 'var(--theme-text)' }} className="text-[11px] font-bold block mb-1">
-                    Manager WhatsApp Phone Number
-                  </label>
+                  <label className="font-semibold block mb-1 text-[11px] text-slate-700">WhatsApp Number</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={managerPhone}
                       onChange={(e) => setManagerPhone(e.target.value)}
-                      placeholder="+91 98765 43210 or +1..."
-                      className="flex-1 px-3 py-2 text-xs rounded-lg border focus:outline-none focus:border-indigo-500"
+                      placeholder="+91 98765 43210"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-blue-500 text-xs"
                     />
                     <a
-                      href={`https://wa.me/${managerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, please review this draft post: "${modalPost.title}" on FixoraAI - http://localhost:5173`)}`}
+                      href={`https://wa.me/${managerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, please review this draft on FixoraAI: "${modalPost.title}" - http://localhost:5173`)}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 shrink-0"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
                       <span>Chat</span>
@@ -981,20 +1256,18 @@ export function ReviewQueueView() {
 
               {reviewChannels.includes('GMAIL') && (
                 <div>
-                  <label style={{ color: 'var(--theme-text)' }} className="text-[11px] font-bold block mb-1">
-                    Manager Email Address
-                  </label>
+                  <label className="font-semibold block mb-1 text-[11px] text-slate-700">Email</label>
                   <div className="flex gap-2">
                     <input
                       type="email"
                       value={managerEmail}
                       onChange={(e) => setManagerEmail(e.target.value)}
-                      placeholder="executive@company.com"
-                      className="flex-1 px-3 py-2 text-xs rounded-lg border focus:outline-none focus:border-indigo-500"
+                      placeholder="manager@company.com"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-blue-500 text-xs"
                     />
                     <a
-                      href={`mailto:${managerEmail}?subject=${encodeURIComponent(`[Fixora Review] ${modalPost.title}`)}&body=${encodeURIComponent(`Hi,\n\nPlease review and approve this draft:\n\nTitle: ${modalPost.title}\nCompliance Score: ${modalPost.compliance_score || 100}%\n\nReview link: http://localhost:5173\n\nThanks!`)}`}
-                      className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1 shrink-0"
+                      href={`mailto:${managerEmail}?subject=${encodeURIComponent(`[Review] ${modalPost.title}`)}&body=${encodeURIComponent(`Hi,\n\nPlease review this draft on FixoraAI:\n\nTitle: ${modalPost.title}\nScore: ${modalPost.compliance_score || 100}%\n\nLink: http://localhost:5173`)}`}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Mail className="h-3.5 w-3.5" />
                       <span>Mail</span>
@@ -1003,44 +1276,130 @@ export function ReviewQueueView() {
                 </div>
               )}
 
-              {/* Confirmation */}
-              {dispatchResults && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Dispatched successfully to higher-ups!</span>
-                  </div>
-                  {dispatchResults.map((r, i) => (
-                    <div key={i} className="text-[10px] text-emerald-300">
-                      • {r.channel}: {r.status} ({r.recipient})
-                    </div>
-                  ))}
+              {dispatchSuccess && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+                  ✓ Dispatched to higher-ups successfully!
                 </div>
               )}
 
-              {/* Actions */}
-              <div 
-                style={{ borderColor: 'var(--theme-border)' }}
-                className="flex items-center justify-end gap-2 pt-3 border-t"
-              >
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowReviewModal(false)}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-xs font-semibold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
-                  disabled={dispatching || reviewChannels.length === 0}
-                  style={{ backgroundColor: 'var(--theme-primary)', color: '#ffffff' }}
-                  className="px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  disabled={dispatching}
+                  className="px-4 py-1.5 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50"
                 >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>{dispatching ? 'Dispatching...' : 'Dispatch Review'}</span>
+                  {dispatching ? 'Sending...' : 'Send'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* No Guidelines Choice Modal */}
+      {showNoGuidelinesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">No Brand Guidelines Uploaded</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Choose how you'd like to proceed with audit</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNoGuidelinesModal(false)}
+                className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              FixoraAI audits your posts against your official brand guidelines (voice, claims, competitor rules, and formatting). Currently, no guidelines have been added to your workspace.
+            </p>
+
+            {uploadError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            <div className="space-y-3 pt-1">
+              {/* Option 1: Upload Guideline Now */}
+              <label className="block p-4 rounded-2xl border-2 border-blue-200 bg-blue-50/50 hover:bg-blue-50 transition-colors cursor-pointer group">
+                <input
+                  type="file"
+                  accept=".pdf,.txt,.md"
+                  onChange={handleModalFileUpload}
+                  disabled={isUploadingGuideline}
+                  className="hidden"
+                />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                      {isUploadingGuideline ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <UploadCloud className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>{isUploadingGuideline ? 'Uploading & Indexing...' : 'Upload Brand Guidelines'}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">Recommended</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Upload a PDF or document to index your official rules</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                </div>
+              </label>
+
+              {/* Option 2: Continue Without Guidelines */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoGuidelinesModal(false);
+                  handleSend(pendingSendText, true);
+                }}
+                disabled={isUploadingGuideline}
+                className="w-full p-3.5 rounded-2xl border border-slate-300 bg-white hover:bg-slate-50 transition-colors cursor-pointer text-left flex items-center justify-between group disabled:opacity-50"
+              >
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">Continue Without Guidelines</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Audit using universal baseline brand policies & legal checks</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+              </button>
+
+              {onNavigate && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNoGuidelinesModal(false);
+                      onNavigate('guidelines');
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer underline"
+                  >
+                    Open Brand Guidelines Hub instead →
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -3,7 +3,8 @@ import {
   Sparkles, 
   ShieldCheck, 
   BookOpen, 
-  Settings
+  Settings,
+  X
 } from 'lucide-react';
 
 export type TabType = 'dashboard' | 'generator' | 'review' | 'guidelines' | 'settings';
@@ -13,14 +14,21 @@ interface SidebarProps {
   setActiveTab: (tab: TabType) => void;
   pendingReviewsCount: number;
   currentUser?: { email: string; name: string; org: string } | null;
-  theme?: 'dark' | 'light';
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export function Sidebar({ activeTab, setActiveTab, pendingReviewsCount, currentUser, theme = 'dark' }: SidebarProps) {
-  const isDark = theme === 'dark';
-  const panelBg = isDark ? '#161F30' : '#FFFFFF';
-  const panelBorder = isDark ? 'rgba(248, 250, 252, 0.12)' : '#E2E8F0';
-  const primaryColor = isDark ? '#6366F1' : '#2563EB';
+export function Sidebar({ 
+  activeTab, 
+  setActiveTab, 
+  pendingReviewsCount, 
+  currentUser,
+  mobileOpen = false,
+  onCloseMobile
+}: SidebarProps) {
+  const panelBg = '#FFFFFF';
+  const panelBorder = '#CBD5E1';
+  const primaryColor = '#2563EB';
 
   const getInitials = (nameStr: string) => {
     if (!nameStr) return 'FX';
@@ -65,47 +73,49 @@ export function Sidebar({ activeTab, setActiveTab, pendingReviewsCount, currentU
     }
   ];
 
-  return (
-    <aside
-      style={{
-        width: '295px',
-        minWidth: '295px',
-        backgroundColor: panelBg,
-        height: '100%',
-        borderRadius: '8px',
-        boxSizing: 'border-box',
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        border: `1px solid ${panelBorder}`,
-        margin: 0,
-        flexShrink: 0
-      }}
-    >
+  const handleNavClick = (id: TabType) => {
+    setActiveTab(id);
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const sidebarContent = (isDrawer: boolean = false) => (
+    <>
       <div>
         {/* Brand Header with Logo */}
-        <div className="flex items-center gap-3 pb-4 mb-4 border-b border-[#CBD5E1]">
-          <img
-            src="/fixoraailogo.jpeg"
-            alt="FixoraAI Logo"
-            className="h-10 w-10 rounded-lg object-cover shadow-sm border border-slate-300/80"
-          />
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-slate-900 text-lg tracking-tight">Fixora</span>
-              <span 
-                style={{ 
-                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(37, 99, 235, 0.1)',
-                  color: primaryColor,
-                  borderColor: isDark ? 'rgba(99, 102, 241, 0.4)' : 'rgba(37, 99, 235, 0.25)'
-                }}
-                className="text-[11px] px-1.5 py-0.2 rounded font-bold border"
-              >
-                AI
-              </span>
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#CBD5E1]">
+          <div className="flex items-center gap-3">
+            <img
+              src="/fixoraailogo.jpeg"
+              alt="FixoraAI Logo"
+              className="h-10 w-10 rounded-lg object-cover shadow-sm border border-slate-300/80"
+            />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-slate-900 text-lg tracking-tight">Fixora</span>
+                <span 
+                  style={{ 
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    color: primaryColor,
+                    borderColor: 'rgba(37, 99, 235, 0.25)'
+                  }}
+                  className="text-[11px] px-1.5 py-0.2 rounded font-bold border"
+                >
+                  AI
+                </span>
+              </div>
             </div>
           </div>
+
+          {isDrawer && onCloseMobile && (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="Close navigation"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Items */}
@@ -116,12 +126,12 @@ export function Sidebar({ activeTab, setActiveTab, pendingReviewsCount, currentU
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => handleNavClick(item.id)}
                 style={{
-                  height: '50px',
-                  minHeight: '50px',
+                  height: '48px',
+                  minHeight: '48px',
                   backgroundColor: isActive ? primaryColor : 'transparent',
-                  color: isActive ? '#ffffff' : (isDark ? '#94A3B8' : '#334155')
+                  color: isActive ? '#ffffff' : '#334155'
                 }}
                 className={`w-full flex items-center justify-between px-3.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   isActive
@@ -153,13 +163,13 @@ export function Sidebar({ activeTab, setActiveTab, pendingReviewsCount, currentU
       >
         <button
           type="button"
-          onClick={() => setActiveTab('settings')}
+          onClick={() => handleNavClick('settings')}
           style={{
-            height: '50px',
-            minHeight: '50px',
+            height: '48px',
+            minHeight: '48px',
             backgroundColor: activeTab === 'settings' 
-              ? (isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(37, 99, 235, 0.08)')
-              : (isDark ? 'rgba(255, 255, 255, 0.04)' : '#F8FAFC'),
+              ? 'rgba(37, 99, 235, 0.08)'
+              : '#F8FAFC',
             borderColor: activeTab === 'settings' ? primaryColor : panelBorder
           }}
           className={`w-full flex items-center justify-between px-3 rounded-lg border text-left transition-all cursor-pointer shadow-2xs ${
@@ -189,6 +199,53 @@ export function Sidebar({ activeTab, setActiveTab, pendingReviewsCount, currentU
           />
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* 1. Desktop Persistent Sidebar */}
+      <aside
+        style={{
+          width: '280px',
+          minWidth: '280px',
+          backgroundColor: panelBg,
+          height: '100%',
+          borderRadius: '8px',
+          boxSizing: 'border-box',
+          padding: '16px',
+          justifyContent: 'space-between',
+          border: `1px solid ${panelBorder}`,
+          margin: 0,
+          flexShrink: 0
+        }}
+        className="hidden lg:flex flex-col"
+      >
+        {sidebarContent(false)}
+      </aside>
+
+      {/* 2. Mobile & Tablet Slide-over Drawer with Backdrop */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div 
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            aria-hidden="true"
+          />
+
+          {/* Drawer content */}
+          <div 
+            style={{
+              backgroundColor: panelBg,
+              borderRight: `1px solid ${panelBorder}`
+            }}
+            className="relative z-50 w-72 max-w-[85vw] h-full p-4 flex flex-col justify-between shadow-2xl animate-in slide-in-from-left duration-200"
+          >
+            {sidebarContent(true)}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
