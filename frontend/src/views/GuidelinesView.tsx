@@ -106,9 +106,9 @@ export function GuidelinesView() {
       {/* Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900 flex flex-wrap items-center gap-2">
             Brand Guidelines & Knowledge Base
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold whitespace-nowrap shrink-0">
               pgvector (768-dim)
             </span>
           </h2>

@@ -177,12 +177,12 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold tracking-wide uppercase">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                Live Brand Governance Active
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] sm:text-[11px] font-bold tracking-wide uppercase whitespace-nowrap">
+                <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                Live Brand Governance
               </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 text-slate-300 border border-white/15 text-[11px] font-medium">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 text-slate-300 border border-white/15 text-[10px] sm:text-[11px] font-medium whitespace-nowrap truncate max-w-[200px] sm:max-w-none">
                 Enterprise Cloud • {orgName}
               </span>
             </div>
@@ -197,60 +197,60 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
           </div>
 
           {/* Quick Header Actions */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => onNavigate?.('generator')}
-              className="px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer hover:scale-102"
+              className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer hover:scale-102 whitespace-nowrap"
             >
-              <Sparkles className="h-4 w-4" />
+              <Sparkles className="h-4 w-4 shrink-0" />
               <span>Generate Post</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate?.('review')}
-              className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer backdrop-blur-md"
+              className="flex-1 sm:flex-initial px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition-all cursor-pointer backdrop-blur-md whitespace-nowrap"
             >
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
               <span>Audit Draft</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate?.('settings')}
-              className="h-10 w-10 rounded-2xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/15 flex items-center justify-center transition-all cursor-pointer"
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/15 flex items-center justify-center transition-all cursor-pointer shrink-0"
               title="Workspace Settings"
             >
-              <Sliders className="h-4 w-4" />
+              <Sliders className="h-4 w-4 shrink-0" />
             </button>
           </div>
         </div>
 
         {/* Executive Snapshot Dock */}
-        <div className="relative z-10 mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div>
-            <div className="text-slate-400 text-[11px] font-medium">Active Brand Voice</div>
-            <div className="text-white font-bold text-sm mt-0.5 truncate">
+        <div className="relative z-10 mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-xs">
+          <div className="min-w-0">
+            <div className="text-slate-400 text-[10px] sm:text-[11px] font-medium whitespace-nowrap truncate">Active Brand Voice</div>
+            <div className="text-white font-bold text-xs sm:text-sm mt-0.5 whitespace-nowrap truncate">
               {brandTones.length > 0 ? brandTones[0] : 'Attractive & Bold'}
             </div>
           </div>
-          <div>
-            <div className="text-slate-400 text-[11px] font-medium">Average Compliance</div>
-            <div className="text-emerald-400 font-bold text-sm mt-0.5 flex items-center gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" />
+          <div className="min-w-0">
+            <div className="text-slate-400 text-[10px] sm:text-[11px] font-medium whitespace-nowrap truncate">Average Compliance</div>
+            <div className="text-emerald-400 font-bold text-xs sm:text-sm mt-0.5 flex items-center gap-1 whitespace-nowrap truncate">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
               <span>{analytics.average_compliance_score}% Verified</span>
             </div>
           </div>
-          <div>
-            <div className="text-slate-400 text-[11px] font-medium">Connected Channels</div>
-            <div className="text-white font-bold text-sm mt-0.5">
+          <div className="min-w-0">
+            <div className="text-slate-400 text-[10px] sm:text-[11px] font-medium whitespace-nowrap truncate">Connected Channels</div>
+            <div className="text-white font-bold text-xs sm:text-sm mt-0.5 whitespace-nowrap truncate">
               {channels.length} Social & Review
             </div>
           </div>
-          <div>
-            <div className="text-slate-400 text-[11px] font-medium">Indexed Rules</div>
-            <div className="text-cyan-400 font-bold text-sm mt-0.5">
+          <div className="min-w-0">
+            <div className="text-slate-400 text-[10px] sm:text-[11px] font-medium whitespace-nowrap truncate">Indexed Rules</div>
+            <div className="text-cyan-400 font-bold text-xs sm:text-sm mt-0.5 whitespace-nowrap truncate">
               {analytics.indexed_rules_count} in pgvector
             </div>
           </div>
@@ -311,17 +311,17 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
             </span>
             <span className="text-xs text-slate-500">posts evaluated</span>
           </div>
-          <div className="flex items-center gap-2 mt-3 text-[11px]">
-            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-3 text-[10px] sm:text-[11px]">
+            <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 whitespace-nowrap">
               {analytics.approved_posts} Approved
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-bold border border-amber-200">
+            <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 font-bold border border-amber-200 whitespace-nowrap">
               {analytics.action_required_posts} Action Req
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2 flex items-center justify-between">
-            <span>Instant &lt;10s RAG evaluation</span>
-            <ArrowRight className="h-3 w-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+            <span className="whitespace-nowrap truncate">Instant &lt;10s RAG evaluation</span>
+            <ArrowRight className="h-3 w-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all shrink-0" />
           </p>
         </div>
 
@@ -331,8 +331,8 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
           className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:border-blue-400 transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Brand Guidelines</span>
-            <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Brand Guidelines</span>
+            <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
               <BookOpen className="h-4 w-4" />
             </div>
           </div>
@@ -340,7 +340,7 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
             <span className="text-3xl font-black text-slate-900 tracking-tight">
               {analytics.guidelines_count}
             </span>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
               analytics.guidelines_count > 0 
                 ? 'text-purple-800 bg-purple-50 border-purple-200' 
                 : 'text-slate-500 bg-slate-50 border-slate-200'
@@ -348,15 +348,15 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
               {analytics.guidelines_count > 0 ? 'Active' : 'Unconfigured'}
             </span>
           </div>
-          <div className="text-[11px] text-slate-600 font-medium mt-3 truncate">
+          <div className="text-[11px] text-slate-600 font-medium mt-3 whitespace-nowrap truncate">
             {analytics.guidelines_count > 0 
-              ? `${analytics.indexed_rules_count} vector chunks indexed in pgvector`
+              ? `${analytics.indexed_rules_count} vector chunks indexed`
               : 'Upload brand guidelines to index rules'
             }
           </div>
           <p className="text-[11px] text-slate-500 mt-2 flex items-center justify-between">
-            <span>Tone, claims, logo & legal rules</span>
-            <ArrowRight className="h-3 w-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+            <span className="whitespace-nowrap truncate">Tone, claims, logo & legal</span>
+            <ArrowRight className="h-3 w-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all shrink-0" />
           </p>
         </div>
 
@@ -366,8 +366,8 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
           className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:border-blue-400 transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Publishing Hub</span>
-            <div className="h-8 w-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Publishing Hub</span>
+            <div className="h-8 w-8 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
               <Share2 className="h-4 w-4" />
             </div>
           </div>
@@ -375,32 +375,32 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
             <span className="text-3xl font-black text-slate-900 tracking-tight">
               {channels.length}
             </span>
-            <span className="text-xs text-slate-500">channels linked</span>
+            <span className="text-xs text-slate-500 whitespace-nowrap">channels linked</span>
           </div>
           <div className="flex items-center gap-1.5 mt-3 text-[11px]">
-            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-bold border border-blue-200">
+            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-bold border border-blue-200 whitespace-nowrap">
               LinkedIn
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold">
+            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold whitespace-nowrap">
               Slack/Teams
             </span>
           </div>
           <p className="text-[11px] text-slate-500 mt-2 flex items-center justify-between">
-            <span>Executive review routing active</span>
-            <ArrowRight className="h-3 w-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+            <span className="whitespace-nowrap truncate">Executive review routing active</span>
+            <ArrowRight className="h-3 w-3 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all shrink-0" />
           </p>
         </div>
       </section>
 
       {/* ── 3. Interactive Quick-Launch Studio Launchpad ── */}
-      <section className="p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs space-y-4">
+      <section className="p-4 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-blue-600" />
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 whitespace-nowrap">
+              <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
               <span>Studio Quick-Launch</span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
               Launch enterprise-calibrated social posts, visual posters, and PDF carousels directly from proven templates.
             </p>
           </div>
@@ -408,7 +408,7 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
           <button
             type="button"
             onClick={() => onNavigate?.('generator')}
-            className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors self-start sm:self-auto cursor-pointer"
+            className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors self-start sm:self-auto cursor-pointer whitespace-nowrap shrink-0"
           >
             <span>Open Full Generator</span>
             <ArrowRight className="h-3.5 w-3.5" />
@@ -423,24 +423,24 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
               onClick={() => handleLaunchTemplate(tpl.prompt)}
               className="p-4 rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/20 transition-all cursor-pointer group flex flex-col justify-between space-y-3 bg-slate-50/50"
             >
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-xl">{tpl.icon}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${tpl.color}`}>
+                  <span className="text-xl shrink-0">{tpl.icon}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${tpl.color}`}>
                     1-Click
                   </span>
                 </div>
-                <h3 className="font-bold text-xs text-slate-900 group-hover:text-blue-600 transition-colors">
+                <h3 className="font-bold text-xs text-slate-900 group-hover:text-blue-600 transition-colors whitespace-nowrap truncate">
                   {tpl.title}
                 </h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2">
                   {tpl.desc}
                 </p>
               </div>
 
               <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-semibold text-blue-600">
-                <span>Use Template</span>
-                <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                <span className="whitespace-nowrap">Use Template</span>
+                <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
             </div>
           ))}
@@ -452,19 +452,19 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
 
         {/* ── Left Column (7 cols): Recent Posts & Live Audits ── */}
         <section className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="h-4 w-4 text-slate-700" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 whitespace-nowrap truncate">
+                <FileText className="h-4 w-4 text-slate-700 shrink-0" />
                 <span>Recent Audits & Social Posts</span>
               </h2>
-              <p className="text-[11px] text-slate-500">Live posts evaluated against active brand rules</p>
+              <p className="text-[11px] text-slate-500 whitespace-nowrap truncate">Live posts evaluated against active brand rules</p>
             </div>
 
             <button
               type="button"
               onClick={() => onNavigate?.('review')}
-              className="text-xs font-semibold text-slate-600 hover:text-blue-600 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-semibold text-slate-600 hover:text-blue-600 flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
             >
               <span>View Review Queue</span>
               <ArrowRight className="h-3 w-3" />
@@ -484,7 +484,7 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
                 <button
                   type="button"
                   onClick={() => onNavigate?.('generator')}
-                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs hover:bg-blue-700 transition-colors"
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs hover:bg-blue-700 transition-colors whitespace-nowrap"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Create First Post</span>
@@ -500,18 +500,18 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
                     className="p-4 hover:bg-slate-50/80 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
                   >
                     <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
                           {post.intent_tags?.target_channel || 'LinkedIn'}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${
                           isApproved 
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
                             : 'bg-amber-50 text-amber-800 border-amber-200'
                         }`}>
                           {isApproved ? 'Approved' : 'Action Required'}
                         </span>
-                        <span className="text-[11px] font-mono font-bold text-slate-600">
+                        <span className="text-[11px] font-mono font-bold text-slate-600 whitespace-nowrap">
                           {post.compliance_score || 100}%
                         </span>
                       </div>
@@ -532,7 +532,7 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
                           e.stopPropagation();
                           onNavigate?.('review');
                         }}
-                        className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+                        className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold shadow-2xs transition-colors whitespace-nowrap"
                       >
                         Inspect Audit
                       </button>
@@ -546,18 +546,18 @@ export function DashboardView({ currentUser, onNavigate }: DashboardViewProps) {
 
         {/* ── Right Column (5 cols): Policy Matrix & Voice Blueprint ── */}
         <section className="lg:col-span-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-indigo-600" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 whitespace-nowrap truncate">
+                <ShieldAlert className="h-4 w-4 text-indigo-600 shrink-0" />
                 <span>Policy Risk Prevention</span>
               </h2>
-              <p className="text-[11px] text-slate-500">Automated defense against common brand breaches</p>
+              <p className="text-[11px] text-slate-500 whitespace-nowrap truncate">Automated defense against common brand breaches</p>
             </div>
             <button
               type="button"
               onClick={() => onNavigate?.('guidelines')}
-              className="text-xs font-semibold text-slate-600 hover:text-blue-600 flex items-center gap-1 cursor-pointer"
+              className="text-xs font-semibold text-slate-600 hover:text-blue-600 flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
             >
               <span>Rules</span>
               <ArrowRight className="h-3 w-3" />

@@ -590,13 +590,13 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-white">
 
         {/* Header — fixed height matches sidebar header exactly */}
-        <header className="h-[49px] px-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
-          <div className="flex items-center gap-2">
+        <header className="h-[49px] px-3 sm:px-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {/* Toggle sidebar button */}
             <button
               type="button"
               onClick={() => setSidebarOpen(o => !o)}
-              className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
               title={sidebarOpen ? 'Hide history' : 'Show history'}
             >
               {sidebarOpen
@@ -604,8 +604,8 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                 : <PanelLeftOpen className="h-4 w-4" />
               }
             </button>
-            <span className="font-bold text-sm text-slate-900 tracking-tight">FixoraAI</span>
-            <span className="text-[11px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-medium">
+            <span className="font-bold text-sm text-slate-900 tracking-tight whitespace-nowrap">FixoraAI</span>
+            <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-500 font-medium whitespace-nowrap">
               Post Review
             </span>
           </div>
@@ -613,10 +613,10 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
           <button
             type="button"
             onClick={startNewChat}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-slate-100"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 whitespace-nowrap shrink-0"
             title="New Review Session"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-3.5 w-3.5 shrink-0" />
             <span>New Chat</span>
           </button>
         </header>
@@ -869,26 +869,25 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                             </div>
                           )}
 
-                          {/* Actions Footer */}
-                          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200">
-                            <button
-                              type="button"
-                              onClick={() => openDispatchModal(m.post!)}
-                              className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 text-xs font-semibold cursor-pointer transition-colors"
-                            >
-                              Send for Review
-                            </button>
+                            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => openDispatchModal(m.post!)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                              >
+                                Send for Review
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handlePublishLinkedIn(m.post!)}
-                              disabled={publishingId === m.post.id}
-                              className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0A66C2] hover:bg-[#084e96] flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
-                            >
-                              <Share2 className="h-3.5 w-3.5" />
-                              <span>{publishingId === m.post.id ? 'Publishing...' : 'Publish to LinkedIn'}</span>
-                            </button>
-                          </div>
+                              <button
+                                type="button"
+                                onClick={() => handlePublishLinkedIn(m.post!)}
+                                disabled={publishingId === m.post.id}
+                                className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0A66C2] hover:bg-[#084e96] flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+                              >
+                                <Share2 className="h-3.5 w-3.5 shrink-0" />
+                                <span>{publishingId === m.post.id ? 'Publishing...' : 'Publish to LinkedIn'}</span>
+                              </button>
+                            </div>
                         </div>
                       )}
                     </div>

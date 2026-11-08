@@ -247,7 +247,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
 
       </div>
 
-      <button type="button" onClick={handleSaveAll} style={{ backgroundColor: '#009DFF', color: '#ffffff' }} className="fixed bottom-6 right-6 z-40 px-5 py-3 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg transition-all cursor-pointer hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+      <button type="button" onClick={handleSaveAll} style={{ backgroundColor: '#009DFF', color: '#ffffff' }} className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-40 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg transition-all cursor-pointer hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 whitespace-nowrap">
         <Save className="h-4 w-4" /> Save Changes
       </button>
 
