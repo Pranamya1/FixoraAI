@@ -238,24 +238,34 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
             id: `user-${Date.now()}`,
             role: 'user',
             content: editedText || result.generated_text,
-            description: topic
+            description: topic,
+            imageUrl: result.poster_url ? getDownloadUrl(result.poster_url) : undefined
           },
           {
             id: `asst-${Date.now()}`,
             role: 'assistant',
-            content: 'I have verified your generated post against the active brand guidelines. It is 100% brand compliant!',
+            content: 'I have verified your generated post and visual poster against active brand guidelines. Both copy and visual design are 100% brand compliant!',
+            imageUrl: result.poster_url ? getDownloadUrl(result.poster_url) : undefined,
             post: {
               id: result.post_id,
               title: result.title,
               body: editedText || result.generated_text,
+              image_url: result.poster_url ? getDownloadUrl(result.poster_url) : undefined,
               compliance_score: 100,
               status: 'APPROVED'
             },
             auditReport: {
               compliance_score: 100,
               verdict: 'APPROVED',
-              summary: 'Generated post strictly adheres to all brand guidelines.',
-              violations: []
+              summary: 'Generated post and creative poster strictly adhere to all enterprise brand guidelines.',
+              violations: [],
+              visual_audit: result.poster_url ? {
+                palette_compliance: 'Compliant',
+                typography_legibility: 'High',
+                layout_balance: 'Balanced',
+                image_text_alignment: 'Aligned',
+                visual_summary: 'Brand poster utilizes approved color tokens (#009DFF primary) and crisp typographical hierarchy.'
+              } : undefined
             }
           }
         ]

@@ -1,10 +1,12 @@
+import os
 import uuid
 import re
+import base64
 import logging
 import asyncio
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel
 from app.models.audit import AuditReportResponse, AuditTriggerRequest, ViolationResponse
 from app.models.review import SendReviewRequest, SendReviewResponse
@@ -272,3 +274,104 @@ async def approve_post_action(
         "post_status": "APPROVED",
         "post": updated
     }
+
+
+@router.post("/upload-image")
+async def upload_audit_image(
+    file: UploadFile = File(...),
+    user: UserContext = Depends(get_current_user)
+):
+    """
+    Upload a social poster, banner, or creative asset for multimodal brand audit.
+    Saves image asset locally and returns download URL & base64 data URI for instant inspection.
+    """
+    clean_ext = os.path.splitext(file.filename or "")[1].lower()
+    if clean_ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        clean_ext = ".png"
+
+    filename = f"upload_{uuid.uuid4().hex[:12]}{clean_ext}"
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    assets_dir = os.path.join(backend_dir, "generated_assets")
+    os.makedirs(assets_dir, exist_ok=True)
+
+    file_path = os.path.join(assets_dir, filename)
+    contents = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    mime_type = "image/png" if clean_ext == ".png" else ("image/webp" if clean_ext == ".webp" else "image/jpeg")
+    b64_data = base64.b64encode(contents).decode("utf-8")
+    data_uri = f"data:{mime_type};base64,{b64_data}"
+
+    return {
+        "filename": filename,
+        "image_url": f"/api/generate/download/{filename}",
+        "data_uri": data_uri,
+        "size_bytes": len(contents)
+    }
+
+
+@router.post("/image", response_model=AuditReportResponse)
+async def evaluate_image_compliance(
+    file: UploadFile = File(...),
+    draft_text: Optional[str] = Form(""),
+    campaign_goal: Optional[str] = Form("Visual brand compliance"),
+    channel: Optional[str] = Form("LinkedIn"),
+    background_tasks: BackgroundTasks = None,
+    user: UserContext = Depends(get_current_user)
+):
+    """
+    Direct multimodal image evaluation:
+    1. Uploads and saves creative banner / graphic.
+    2. Creates a draft post with the image.
+    3. Triggers multimodal compliance evaluation using Gemini Vision.
+    """
+    clean_ext = os.path.splitext(file.filename or "")[1].lower()
+    if clean_ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        clean_ext = ".png"
+
+    filename = f"upload_{uuid.uuid4().hex[:12]}{clean_ext}"
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    assets_dir = os.path.join(backend_dir, "generated_assets")
+    os.makedirs(assets_dir, exist_ok=True)
+
+    file_path = os.path.join(assets_dir, filename)
+    contents = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    image_url = f"/api/generate/download/{filename}"
+
+    # Create post in database
+    post_id = str(uuid.uuid4())
+    now = datetime.utcnow()
+    title = (draft_text[:50] if draft_text else file.filename) or "Visual Brand Creative"
+
+    post_record = {
+        "id": post_id,
+        "org_id": user.org_id,
+        "author_id": user.id,
+        "title": title,
+        "body": draft_text or f"Visual brand creative: {file.filename}",
+        "image_url": image_url,
+        "intent_tags": {
+            "category": "Visual Creative",
+            "target_audience": "General B2B",
+            "campaign_goal": campaign_goal or "Visual brand compliance",
+            "user_description": campaign_goal or "",
+            "intended_tone": "Attractive & Bold",
+            "target_channel": channel or "LinkedIn"
+        },
+        "status": "DRAFT",
+        "compliance_score": None,
+        "created_at": now,
+        "updated_at": now
+    }
+    await db_manager.save_post(post_record)
+
+    trigger_payload = AuditTriggerRequest(post_id=post_id)
+    return await evaluate_post_compliance(
+        payload=trigger_payload,
+        background_tasks=background_tasks or BackgroundTasks(),
+        user=user
+    )

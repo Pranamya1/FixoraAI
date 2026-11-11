@@ -125,13 +125,12 @@ class GeminiClient:
             backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
             assets_dir = os.path.join(backend_dir, "generated_assets")
 
-            if "generate/download/" in image_url or "poster_" in image_url or "test_" in image_url:
-                filename = os.path.basename(image_url.split("?")[0])
-                local_path = os.path.join(assets_dir, filename)
-                if os.path.exists(local_path):
-                    mime = "image/png" if filename.lower().endswith(".png") else "image/jpeg"
-                    with open(local_path, "rb") as f:
-                        return types.Part.from_bytes(data=f.read(), mime_type=mime)
+            filename = os.path.basename(image_url.split("?")[0])
+            local_path = os.path.join(assets_dir, filename)
+            if os.path.exists(local_path):
+                mime = "image/png" if filename.lower().endswith(".png") else "image/jpeg"
+                with open(local_path, "rb") as f:
+                    return types.Part.from_bytes(data=f.read(), mime_type=mime)
 
             # 3. Direct local file path
             if os.path.exists(image_url):

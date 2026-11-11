@@ -148,6 +148,30 @@ export const api = {
     return res.json();
   },
 
+  async uploadAuditImage(file: File): Promise<{ filename: string; image_url: string; data_uri: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE}/audit/upload-image`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Failed to upload creative image for audit');
+    return res.json();
+  },
+
+  async auditImageDirectly(file: File, draftText = '', campaignGoal = 'Visual brand compliance'): Promise<AuditReport> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('draft_text', draftText);
+    formData.append('campaign_goal', campaignGoal);
+    const res = await fetch(`${API_BASE}/audit/image`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Visual brand audit failed');
+    return res.json();
+  },
+
   // --- Multimodal Generator ---
   async generateContent(payload: GenerationRequest): Promise<GenerationResponse> {
     const res = await fetch(`${API_BASE}/generate`, {

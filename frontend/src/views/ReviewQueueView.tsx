@@ -22,7 +22,8 @@ import {
   BookOpen,
   UploadCloud,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  Image as ImageIcon
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Post, AuditReport } from '../types';
@@ -35,6 +36,7 @@ interface Message {
   content: string;
   description?: string;
   attachmentName?: string;
+  imageUrl?: string;
   post?: Post;
   auditReport?: AuditReport;
   fixedContent?: string;
@@ -135,6 +137,19 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [tempDraftInput, setTempDraftInput] = useState('');
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setImagePreview((ev.target?.result as string) || null);
+    };
+    reader.readAsDataURL(file);
+  };
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
@@ -299,7 +314,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
       }
     }
 
-    if (!postCopy && !attachment) return;
+    if (!postCopy && !attachment && !imageFile) return;
 
     // Check if guidelines exist, unless user explicitly chose to continue without
     if (!bypassGuidelinesCheck) {
@@ -327,7 +342,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
       const id = `session-${Date.now()}`;
       const newSession: ChatSession = {
         id,
-        title: (descriptionText || postCopy).slice(0, 50) || 'New Review',
+        title: (descriptionText || postCopy || imageFile?.name || 'New Review').slice(0, 50),
         createdAt: new Date().toISOString(),
         messages: []
       };
@@ -342,14 +357,31 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
 
     const userMessageId = `user-${Date.now()}`;
     const assistantMessageId = `assistant-${Date.now()}`;
-    const displayContent = postCopy || (attachment ? `Uploaded file: ${attachment.name}` : '');
+    const displayContent = postCopy || (imageFile ? `Attached creative graphic: ${imageFile.name}` : (attachment ? `Uploaded file: ${attachment.name}` : ''));
+
+    // Upload image if present to obtain server URL & base64 preview
+    let uploadedImageUrl: string | undefined = undefined;
+    let imagePreviewUri: string | undefined = imagePreview || undefined;
+
+    if (imageFile) {
+      try {
+        const uploadRes = await api.uploadAuditImage(imageFile);
+        uploadedImageUrl = uploadRes.image_url;
+        if (uploadRes.data_uri) {
+          imagePreviewUri = uploadRes.data_uri;
+        }
+      } catch (e) {
+        console.warn('Image upload error, fallback to local data URI:', e);
+      }
+    }
 
     const userMsg: Message = {
       id: userMessageId,
       role: 'user',
       content: displayContent,
       description: descriptionText || undefined,
-      attachmentName: attachment?.name
+      attachmentName: imageFile ? imageFile.name : attachment?.name,
+      imageUrl: imagePreviewUri
     };
 
     const nextMessages = [...messages, userMsg];
@@ -359,6 +391,8 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
     setInput('');
     setDraftText('');
     setAttachment(null);
+    setImageFile(null);
+    setImagePreview(null);
     setLoading(true);
 
     try {
@@ -366,6 +400,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
       const createdPost = await api.createPost({
         title,
         body: displayContent,
+        image_url: uploadedImageUrl || (imagePreviewUri?.startsWith('data:') ? imagePreviewUri : undefined),
         intent_tags: {
           target_channel: 'LinkedIn',
           target_audience: 'B2B Decision Makers',
@@ -397,6 +432,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
         id: assistantMessageId,
         role: 'assistant',
         content: report.summary || "I've reviewed your post against the brand guidelines.",
+        imageUrl: imagePreviewUri,
         post: updatedPost,
         auditReport: report,
         fixedContent: polished !== displayContent ? polished : undefined
@@ -711,7 +747,26 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                             {renderFormattedPost(m.content)}
                           </div>
 
-                          {m.attachmentName && (
+                          {/* Attached Visual Creative */}
+                          {m.imageUrl && (
+                            <div className="border-t border-slate-200 p-3 bg-slate-50/80 flex items-center gap-3">
+                              <img
+                                src={m.imageUrl}
+                                alt="Attached Creative"
+                                className="h-16 w-16 rounded-lg object-cover border border-slate-300 shadow-2xs shrink-0"
+                              />
+                              <div className="text-xs min-w-0">
+                                <span className="font-bold text-slate-800 block truncate">
+                                  {m.attachmentName || 'Visual Brand Graphic'}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[10px] text-indigo-700 font-semibold mt-0.5">
+                                  <Sparkles className="h-3 w-3" /> Audited with Gemini Vision
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {m.attachmentName && !m.imageUrl && (
                             <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-200 flex items-center gap-1.5 text-[11px] text-blue-700 font-medium">
                               <FileText className="h-3.5 w-3.5" />
                               <span>{m.attachmentName}</span>
@@ -801,40 +856,55 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
 
                           {/* Multimodal Gemini Vision Visual Inspection Card */}
                           {m.auditReport?.visual_audit && (
-                            <div className="p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/60 space-y-2 text-xs">
+                            <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/70 space-y-2.5 text-xs shadow-2xs">
                               <div className="flex items-center justify-between text-[11px] font-bold">
                                 <span className="flex items-center gap-1.5 text-indigo-950">
                                   <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                                  Multimodal Visual Inspection (Gemini Vision)
+                                  Multimodal Visual Brand Inspection (Gemini Vision)
                                 </span>
-                                <span className="px-2 py-0.5 rounded-full bg-indigo-100/80 text-indigo-700 text-[10px] font-semibold">
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold border border-indigo-200">
                                   {m.auditReport.visual_audit.image_text_alignment || 'Aligned'}
                                 </span>
                               </div>
 
-                              {m.auditReport.visual_audit.visual_summary && (
-                                <p className="text-[11px] text-slate-600 leading-relaxed italic">
-                                  &ldquo;{m.auditReport.visual_audit.visual_summary}&rdquo;
-                                </p>
-                              )}
+                              <div className="flex gap-3 items-start">
+                                {(m.imageUrl || m.post?.image_url) && (
+                                  <img
+                                    src={m.imageUrl || m.post?.image_url}
+                                    alt="Audited creative"
+                                    className="h-14 w-14 rounded-lg object-cover border border-indigo-200 shrink-0 shadow-2xs"
+                                  />
+                                )}
+                                {m.auditReport.visual_audit.visual_summary && (
+                                  <p className="text-[11px] text-slate-700 leading-relaxed italic bg-white/90 p-2.5 rounded-lg border border-indigo-100 flex-1">
+                                    &ldquo;{m.auditReport.visual_audit.visual_summary}&rdquo;
+                                  </p>
+                                )}
+                              </div>
 
-                              <div className="grid grid-cols-3 gap-2 pt-1 text-[10px]">
-                                <div className="p-2 rounded-lg bg-white/90 border border-indigo-100">
-                                  <span className="text-slate-400 block font-medium">Palette</span>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[10px]">
+                                <div className="p-2 rounded-lg bg-white border border-indigo-100">
+                                  <span className="text-slate-400 block font-medium">Brand Palette</span>
                                   <span className={`font-bold ${m.auditReport.visual_audit.palette_compliance === 'Compliant' ? 'text-emerald-700' : 'text-amber-700'}`}>
                                     {m.auditReport.visual_audit.palette_compliance || 'Compliant'}
                                   </span>
                                 </div>
-                                <div className="p-2 rounded-lg bg-white/90 border border-indigo-100">
+                                <div className="p-2 rounded-lg bg-white border border-indigo-100">
                                   <span className="text-slate-400 block font-medium">Typography</span>
                                   <span className="font-bold text-slate-800">
                                     {m.auditReport.visual_audit.typography_legibility || 'High'}
                                   </span>
                                 </div>
-                                <div className="p-2 rounded-lg bg-white/90 border border-indigo-100">
-                                  <span className="text-slate-400 block font-medium">Layout</span>
+                                <div className="p-2 rounded-lg bg-white border border-indigo-100">
+                                  <span className="text-slate-400 block font-medium">Layout Balance</span>
                                   <span className="font-bold text-slate-800">
                                     {m.auditReport.visual_audit.layout_balance || 'Balanced'}
+                                  </span>
+                                </div>
+                                <div className="p-2 rounded-lg bg-white border border-indigo-100">
+                                  <span className="text-slate-400 block font-medium">Copy Alignment</span>
+                                  <span className="font-bold text-indigo-700">
+                                    {m.auditReport.visual_audit.image_text_alignment || 'Aligned'}
                                   </span>
                                 </div>
                               </div>
@@ -987,6 +1057,41 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
             </div>
           )}
 
+          {/* Creative Image Attached Chip */}
+          {imagePreview && (
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2 rounded-2xl bg-indigo-50/90 border border-indigo-200 text-xs text-slate-800 shadow-2xs gap-2">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <img
+                  src={imagePreview}
+                  alt="Creative graphic preview"
+                  className="h-8 w-8 rounded-lg object-cover border border-indigo-200 shadow-2xs shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-indigo-950 text-xs">Attached Creative Graphic</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-indigo-100 text-indigo-800 font-bold border border-indigo-200">
+                      Gemini Vision
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 truncate mt-0.5">
+                    {imageFile?.name} {imageFile ? `(${(imageFile.size / 1024).toFixed(0)} KB)` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setImageFile(null);
+                  setImagePreview(null);
+                }}
+                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                title="Remove attached image"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* Gemini Pill – Multi-line Auto-expanding Goal / Prompt Input */}
           <div
             style={{ 
@@ -1011,9 +1116,24 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                       setTempDraftInput(text);
                     };
                     reader.readAsText(file);
+                  } else if (file.type.startsWith('image/')) {
+                    handleImageSelect(file);
                   } else {
                     setAttachment(file);
                   }
+                }
+              }}
+              className="hidden"
+            />
+
+            {/* Hidden image input for direct graphic attachment */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/jpg"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleImageSelect(e.target.files[0]);
                 }
               }}
               className="hidden"
@@ -1030,6 +1150,18 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
               title="Attach post draft or upload file"
             >
               <Plus className="h-6 w-6" strokeWidth={1.75} />
+            </button>
+
+            {/* Image attachment button for Gemini Vision audit */}
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className={`h-10 w-10 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0 self-center ${
+                imagePreview ? 'text-indigo-600 bg-indigo-100' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
+              }`}
+              title="Attach post graphic / banner (.png, .jpg) for Gemini Vision audit"
+            >
+              <ImageIcon className="h-5 w-5" strokeWidth={1.75} />
             </button>
 
             {/* Multi-line auto-expanding Textarea for Description / Campaign Goal */}
