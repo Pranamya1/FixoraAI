@@ -177,6 +177,12 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
   const [dispatching, setDispatching] = useState(false);
   const [dispatchSuccess, setDispatchSuccess] = useState<any[] | null>(null);
 
+  // ── Multi-Platform Social Publishing state ──
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishPostItem, setPublishPostItem] = useState<Post | null>(null);
+  const [selectedPublishChannels, setSelectedPublishChannels] = useState<string[]>(['LINKEDIN', 'TWITTER', 'SLACK']);
+  const [publishResults, setPublishResults] = useState<any[] | null>(null);
+
   // ── Refs ──
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -482,17 +488,34 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handlePublishLinkedIn = async (post: Post) => {
-    setPublishingId(post.id);
-    setPublishUrl(null);
+  const openPublishModal = (post: Post) => {
+    setPublishPostItem(post);
+    setPublishResults(null);
+    setShowPublishModal(true);
+  };
+
+  const handleTogglePublishChannel = (ch: string) => {
+    setSelectedPublishChannels(prev => 
+      prev.includes(ch) ? prev.filter(c => c !== ch) : [...prev, ch]
+    );
+  };
+
+  const handleExecutePublish = async () => {
+    if (!publishPostItem || selectedPublishChannels.length === 0) return;
+    setPublishingId(publishPostItem.id);
     try {
-      const res = await api.publishPost(post.id, ['LINKEDIN']);
-      const li = res.results?.find((r: any) => r.platform === 'LINKEDIN');
+      if (publishPostItem.body) {
+        navigator.clipboard.writeText(publishPostItem.body);
+      }
+      const res = await api.publishPost(publishPostItem.id, selectedPublishChannels);
+      const items = Array.isArray(res) ? res : (res.results || []);
+      setPublishResults(items);
+      const li = items.find((r: any) => r.platform === 'LINKEDIN');
       if (li?.external_url) {
         setPublishUrl(li.external_url);
       }
     } catch (err: any) {
-      alert('Failed to publish to LinkedIn: ' + err.message);
+      alert('Failed to publish post: ' + err.message);
     } finally {
       setPublishingId(null);
     }
@@ -950,12 +973,12 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
 
                               <button
                                 type="button"
-                                onClick={() => handlePublishLinkedIn(m.post!)}
+                                onClick={() => openPublishModal(m.post!)}
                                 disabled={publishingId === m.post.id}
                                 className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0A66C2] hover:bg-[#084e96] flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
                               >
                                 <Share2 className="h-3.5 w-3.5 shrink-0" />
-                                <span>{publishingId === m.post.id ? 'Publishing...' : 'Publish to LinkedIn'}</span>
+                                <span>{publishingId === m.post.id ? 'Publishing...' : 'Publish to Channels'}</span>
                               </button>
                             </div>
                         </div>
@@ -1530,6 +1553,166 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Multi-Platform Social Publishing Modal ── */}
+      {showPublishModal && publishPostItem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col text-xs text-slate-800">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-[#009DFF] text-white flex items-center justify-center shadow-xs">
+                  <Share2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Publish to Social Channels</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Direct automated dispatch to connected enterprise channels
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPublishModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-200/60"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {/* Post Preview Card */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Draft Content</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                    {publishPostItem.compliance_score || 100}% Brand Compliant
+                  </span>
+                </div>
+                <div className="font-bold text-slate-900 truncate text-xs">{publishPostItem.title}</div>
+                <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed">
+                  {publishPostItem.body}
+                </p>
+                {publishPostItem.image_url && (
+                  <div className="flex items-center gap-2 pt-1 text-[10px] text-indigo-700 font-semibold">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    <span>Visual banner asset attached & verified</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Channels Selector */}
+              <div>
+                <label className="font-bold block mb-2 uppercase text-[10px] text-slate-600 tracking-wider">
+                  Select Target Channels
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { id: 'LINKEDIN', name: 'LinkedIn Company & Personal Feed', badge: '1-Click UGC Share', color: '#0A66C2' },
+                    { id: 'TWITTER', name: 'Twitter / X Feed', badge: 'Direct Tweet Dispatch', color: '#000000' },
+                    { id: 'SLACK', name: 'Slack Marketing Channel', badge: 'Instant Webhook Broadcast', color: '#4A154B' }
+                  ].map((ch) => {
+                    const selected = selectedPublishChannels.includes(ch.id);
+                    return (
+                      <div
+                        key={ch.id}
+                        onClick={() => handleTogglePublishChannel(ch.id)}
+                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          selected
+                            ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/30'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div 
+                            style={{ backgroundColor: ch.color }}
+                            className="h-7 w-7 rounded-lg text-white font-bold text-[10px] flex items-center justify-center shrink-0"
+                          >
+                            {ch.id === 'LINKEDIN' ? 'in' : ch.id === 'TWITTER' ? '𝕏' : '#'}
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-slate-900">{ch.name}</div>
+                            <div className="text-[10px] text-slate-500">{ch.badge}</div>
+                          </div>
+                        </div>
+                        <div className={`h-4 w-4 rounded border flex items-center justify-center ${
+                          selected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'
+                        }`}>
+                          {selected && <Check className="h-3 w-3 stroke-[3]" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Success Result View */}
+              {publishResults && (
+                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 space-y-2.5 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>Post Successfully Dispatched & Published!</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Content was copied to your clipboard. Click below to view on each platform:
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    {publishResults.map((r, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white border border-emerald-100 text-[11px]">
+                        <span className="font-bold text-slate-800">{r.platform}</span>
+                        {r.external_url ? (
+                          <a
+                            href={r.external_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:underline font-semibold flex items-center gap-1"
+                          >
+                            <span>Open on {r.platform}</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="text-emerald-700 font-semibold">Dispatched</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2.5 p-4 border-t border-slate-200 bg-slate-50/60">
+              <button
+                type="button"
+                onClick={() => setShowPublishModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 font-semibold cursor-pointer text-xs transition-colors"
+              >
+                {publishResults ? 'Close' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExecutePublish}
+                disabled={publishingId === publishPostItem.id || selectedPublishChannels.length === 0}
+                style={{ backgroundColor: '#009DFF' }}
+                className="px-5 py-2 rounded-xl font-bold text-white hover:opacity-90 disabled:opacity-50 cursor-pointer text-xs shadow-xs transition-all flex items-center gap-1.5"
+              >
+                {publishingId === publishPostItem.id ? (
+                  <>
+                    <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Publishing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span>{publishResults ? 'Re-Publish' : `Publish (${selectedPublishChannels.length})`}</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

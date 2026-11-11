@@ -6,6 +6,7 @@ from datetime import datetime
 class PublishPlatform(str, Enum):
     LINKEDIN = "LINKEDIN"
     TWITTER = "TWITTER"
+    SLACK = "SLACK"
     INSTAGRAM = "INSTAGRAM"
     FACEBOOK = "FACEBOOK"
 
@@ -27,4 +28,6 @@ class PublishHistoryResponse(BaseModel):
     published_at: Optional[datetime] = None
     scheduled_for: Optional[datetime] = None
     external_url: Optional[str] = None
+    share_url: Optional[str] = None
+    mode: Optional[str] = None
     error_message: Optional[str] = None

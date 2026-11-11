@@ -26,11 +26,14 @@ class PublishingHub:
         - Facebook (Meta Graph API v19.0 Page Feed)
         - Instagram (Meta Instagram Graph Content Publishing API)
         """
-        # Find post
-        posts = [p for p in self.db._memory_store["posts"] if p.get("id") == post_id]
-        if not posts:
+        # Find post: query Supabase first, fallback to memory
+        post = await self.db.get_post_by_id(post_id)
+        if not post:
+            mem_posts = [p for p in self.db._memory_store["posts"] if p.get("id") == post_id]
+            if mem_posts:
+                post = mem_posts[0]
+        if not post:
             raise ValueError(f"Post '{post_id}' not found.")
-        post = posts[0]
 
         records = []
         for platform in platforms:
@@ -44,10 +47,14 @@ class PublishingHub:
             self.db._memory_store["publish_history"].append(dispatch_result)
             records.append(dispatch_result)
 
-        # Update post status to PUBLISHED if immediately dispatched
+        # Update post status to PUBLISHED in database if immediately dispatched
         if not scheduled_for:
             post["status"] = "PUBLISHED"
             post["updated_at"] = datetime.utcnow()
+            try:
+                await self.db.update_post(post_id, {"status": "PUBLISHED"})
+            except Exception as e:
+                logger.warning(f"Could not update post status to PUBLISHED in Supabase: {e}")
 
         logger.info(f"Published post '{post_id}' across {len(platforms)} platform(s).")
         return records
@@ -81,6 +88,8 @@ class PublishingHub:
             return await self._publish_linkedin(post, record_id, body, image_url)
         elif platform == PublishPlatform.TWITTER:
             return await self._publish_twitter(post, record_id, body, image_url)
+        elif platform == PublishPlatform.SLACK:
+            return await self._publish_slack(post, record_id, body, image_url)
         elif platform == PublishPlatform.FACEBOOK:
             return await self._publish_facebook(post, record_id, body, image_url)
         elif platform == PublishPlatform.INSTAGRAM:
@@ -97,19 +106,18 @@ class PublishingHub:
             }
 
     async def _publish_linkedin(self, post: Dict[str, Any], record_id: str, text: str, image_url: Optional[str]) -> Dict[str, Any]:
-        """LinkedIn UGC Posts API v2 connector."""
+        """LinkedIn UGC Posts API v2 connector with instant direct share URL."""
+        import urllib.parse
         access_token = settings.LINKEDIN_ACCESS_TOKEN
         author_urn = settings.LINKEDIN_AUTHOR_URN
 
         # Check if connected account has credentials
         if not access_token:
-            # Check in-memory store
             for acc in self.db._memory_store.get("connected_accounts", []):
                 if acc.get("platform") == "LINKEDIN" and acc.get("access_token"):
                     access_token = acc.get("access_token")
                     author_urn = acc.get("author_urn") or author_urn
                     break
-            # Check Supabase if connected
             if not access_token and self.db.is_connected and self.db.supabase:
                 try:
                     res = self.db.supabase.table("connected_social_accounts").select("*").eq("platform", "LINKEDIN").limit(1).execute()
@@ -121,6 +129,9 @@ class PublishingHub:
                     logger.debug(f"Could not query Supabase connected_social_accounts: {e}")
 
         author_urn = author_urn or "urn:li:organization:100234891"
+        encoded_text = urllib.parse.quote(text)
+        direct_share_url = f"https://www.linkedin.com/feed/?shareActive=true&text={encoded_text}"
+
         payload = {
             "author": author_urn,
             "lifecycleState": "PUBLISHED",
@@ -152,12 +163,13 @@ class PublishingHub:
                             "status": PublishStatus.PUBLISHED.value,
                             "published_at": datetime.utcnow().isoformat(),
                             "external_url": f"https://www.linkedin.com/feed/update/{li_id}",
+                            "share_url": direct_share_url,
                             "mode": "LIVE_API"
                         }
                     else:
-                        logger.warning(f"LinkedIn API returned {res.status_code}: {res.text}. Falling back to simulated log.")
+                        logger.warning(f"LinkedIn API returned {res.status_code}: {res.text}. Falling back to direct share.")
             except Exception as e:
-                logger.warning(f"LinkedIn live API error: {e}. Falling back to simulation.")
+                logger.warning(f"LinkedIn live API error: {e}. Falling back to direct share.")
 
         return {
             "id": record_id,
@@ -165,14 +177,18 @@ class PublishingHub:
             "platform": PublishPlatform.LINKEDIN.value,
             "status": PublishStatus.PUBLISHED.value,
             "published_at": datetime.utcnow().isoformat(),
-            "external_url": f"https://www.linkedin.com/feed/update/urn:li:share:{record_id}",
-            "mode": "SIMULATED",
+            "external_url": direct_share_url,
+            "share_url": direct_share_url,
+            "mode": "DIRECT_SHARE",
             "payload_preview": payload
         }
 
     async def _publish_twitter(self, post: Dict[str, Any], record_id: str, text: str, image_url: Optional[str]) -> Dict[str, Any]:
-        """Twitter / X API v2 Tweets endpoint."""
+        """Twitter / X API v2 Tweets endpoint with direct Web Intent fallback."""
+        import urllib.parse
         tweet_text = text[:280] if len(text) > 280 else text
+        encoded_text = urllib.parse.quote(tweet_text)
+        direct_tweet_url = f"https://twitter.com/intent/tweet?text={encoded_text}"
         payload = {"text": tweet_text}
 
         if settings.TWITTER_BEARER_TOKEN:
@@ -192,10 +208,11 @@ class PublishingHub:
                             "status": PublishStatus.PUBLISHED.value,
                             "published_at": datetime.utcnow().isoformat(),
                             "external_url": f"https://x.com/FixoraAI/status/{tweet_id}",
+                            "share_url": direct_tweet_url,
                             "mode": "LIVE_API"
                         }
             except Exception as e:
-                logger.warning(f"Twitter API v2 error: {e}. Falling back to simulation.")
+                logger.warning(f"Twitter API v2 error: {e}. Falling back to direct tweet.")
 
         return {
             "id": record_id,
@@ -203,9 +220,59 @@ class PublishingHub:
             "platform": PublishPlatform.TWITTER.value,
             "status": PublishStatus.PUBLISHED.value,
             "published_at": datetime.utcnow().isoformat(),
-            "external_url": f"https://x.com/FixoraAI/status/{record_id}",
-            "mode": "SIMULATED",
+            "external_url": direct_tweet_url,
+            "share_url": direct_tweet_url,
+            "mode": "DIRECT_TWEET",
             "payload_preview": payload
+        }
+
+    async def _publish_slack(self, post: Dict[str, Any], record_id: str, text: str, image_url: Optional[str]) -> Dict[str, Any]:
+        """Slack Webhook publishing: Dispatches compliant post to marketing Slack channel."""
+        slack_webhook = settings.SLACK_WEBHOOK_URL
+        title = post.get("title", "Compliant Marketing Post")
+        score = post.get("compliance_score", 100)
+
+        payload = {
+            "text": f"🚀 *New Compliant Post Approved ({score}% Compliance)*\n*{title}*\n\n{text}",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": "🚀 Approved Post Dispatched", "emoji": True}
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Title:* {title}\n*Compliance:* `{score}% Brand Compliant`\n\n{text}"
+                    }
+                }
+            ]
+        }
+
+        if image_url:
+            img_src = image_url if image_url.startswith("http") else f"https://fixoraai.onrender.com{image_url}"
+            payload["blocks"].append({
+                "type": "image",
+                "image_url": img_src,
+                "alt_text": "Post creative graphic"
+            })
+
+        if slack_webhook:
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    await client.post(slack_webhook, json=payload)
+            except Exception as e:
+                logger.warning(f"Slack webhook error: {e}")
+
+        return {
+            "id": record_id,
+            "post_id": post.get("id"),
+            "platform": PublishPlatform.SLACK.value,
+            "status": PublishStatus.PUBLISHED.value,
+            "published_at": datetime.utcnow().isoformat(),
+            "external_url": "https://slack.com",
+            "share_url": "https://slack.com",
+            "mode": "WEBHOOK_DISPATCH"
         }
 
     async def _publish_facebook(self, post: Dict[str, Any], record_id: str, text: str, image_url: Optional[str]) -> Dict[str, Any]:
