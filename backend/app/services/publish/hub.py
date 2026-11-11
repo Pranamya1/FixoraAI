@@ -302,13 +302,17 @@ class PublishingHub:
             except Exception as e:
                 logger.warning(f"Facebook Graph API error: {e}. Falling back to simulation.")
 
+        encoded_text = urllib.parse.quote(text[:300])
+        direct_fb_url = f"https://www.facebook.com/sharer/sharer.php?quote={encoded_text}&u=https%3A%2F%2Ffixoraai.onrender.com"
+
         return {
             "id": record_id,
             "post_id": post.get("id"),
             "platform": PublishPlatform.FACEBOOK.value,
             "status": PublishStatus.PUBLISHED.value,
             "published_at": datetime.utcnow().isoformat(),
-            "external_url": f"https://facebook.com/FixoraAI/posts/{record_id}",
+            "external_url": direct_fb_url,
+            "share_url": direct_fb_url,
             "mode": "SIMULATED",
             "payload_preview": payload
         }
@@ -354,7 +358,8 @@ class PublishingHub:
             "platform": PublishPlatform.INSTAGRAM.value,
             "status": PublishStatus.PUBLISHED.value,
             "published_at": datetime.utcnow().isoformat(),
-            "external_url": f"https://www.instagram.com/p/{record_id}/",
+            "external_url": "https://www.instagram.com",
+            "share_url": "https://www.instagram.com",
             "mode": "SIMULATED",
             "payload_preview": container_payload
         }

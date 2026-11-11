@@ -37,10 +37,11 @@ const AVAILABLE_TONES = [
 const AVAILABLE_CHANNELS = [
   { id: 'LinkedIn', desc: 'Social & Articles', badge: 'Publishing' },
   { id: 'Twitter', desc: 'Campaign launches & threads', badge: 'Publishing' },
+  { id: 'Instagram', desc: 'Visual creatives & reels', badge: 'Publishing' },
+  { id: 'Facebook', desc: 'Enterprise page feed & stories', badge: 'Publishing' },
   { id: 'Slack', desc: 'Team review notifications', badge: 'Review Hub' },
   { id: 'Gmail', desc: 'Executive sign-offs', badge: 'Review Hub' },
-  { id: 'Teams', desc: 'Connector cards & updates', badge: 'Review Hub' },
-  { id: 'Instagram', desc: 'Visual creatives & reels', badge: 'Publishing' }
+  { id: 'Teams', desc: 'Connector cards & updates', badge: 'Review Hub' }
 ];
 
 export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: SettingsViewProps) {
@@ -86,6 +87,10 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
   const [isDeleting, setIsDeleting] = useState(false);
   const [connectedSocials, setConnectedSocials] = useState<string[]>([]);
   const [isConnectingOAuth, setIsConnectingOAuth] = useState<string | null>(null);
+  const [connectModalPlatform, setConnectModalPlatform] = useState<string | null>(null);
+  const [connectModalHandle, setConnectModalHandle] = useState<string>('');
+  const [connectModalName, setConnectModalName] = useState<string>('');
+  const [isSavingDirectConnect, setIsSavingDirectConnect] = useState<boolean>(false);
   const [oauthBanner, setOauthBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -162,6 +167,40 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
       });
     } catch (err: any) {
       alert(`Could not disconnect ${platform}: ` + err.message);
+    }
+  };
+
+  const openDirectConnectModal = (e: React.MouseEvent, platform: string) => {
+    e.stopPropagation();
+    const platNorm = platform.toUpperCase();
+    const defaultHandle = platNorm === 'TWITTER' ? '@FixoraAI' : platNorm === 'INSTAGRAM' ? '@fixora.ai' : 'Fixora Global';
+    setConnectModalPlatform(platNorm);
+    setConnectModalHandle(defaultHandle);
+    setConnectModalName(companyName || 'FixoraAI Global');
+  };
+
+  const handleSaveDirectConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!connectModalPlatform || !connectModalHandle) return;
+    setIsSavingDirectConnect(true);
+    try {
+      await api.connectDirectAccount(connectModalPlatform, connectModalHandle, connectModalName);
+      setConnectedSocials(prev => Array.from(new Set([...prev, connectModalPlatform])));
+      const platName = connectModalPlatform === 'TWITTER' ? 'Twitter' : connectModalPlatform === 'LINKEDIN' ? 'LinkedIn' : connectModalPlatform.charAt(0) + connectModalPlatform.slice(1).toLowerCase();
+      setSelectedChannels(prev => {
+        const updated = Array.from(new Set([...prev, platName]));
+        localStorage.setItem('fixora_setting_channels', JSON.stringify(updated));
+        return updated;
+      });
+      setOauthBanner({
+        type: 'success',
+        message: `${connectModalPlatform} connected successfully as ${connectModalHandle}!`
+      });
+      setConnectModalPlatform(null);
+    } catch (err: any) {
+      alert('Failed to connect channel: ' + err.message);
+    } finally {
+      setIsSavingDirectConnect(false);
     }
   };
 
@@ -519,7 +558,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {AVAILABLE_CHANNELS.map((ch) => {
             const active = selectedChannels.includes(ch.id);
-            const isOAuthChannel = ch.id.toUpperCase() === 'LINKEDIN';
+            const isPublishingChannel = ['LINKEDIN', 'TWITTER', 'INSTAGRAM', 'FACEBOOK'].includes(ch.id.toUpperCase());
             const isConnected = connectedSocials.includes(ch.id.toUpperCase());
 
             return (
@@ -547,7 +586,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {isOAuthChannel && (
+                  {isPublishingChannel && (
                     isConnected ? (
                       <button
                         type="button"
@@ -557,7 +596,7 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
                       >
                         Disconnect
                       </button>
-                    ) : (
+                    ) : ch.id.toUpperCase() === 'LINKEDIN' ? (
                       <button
                         type="button"
                         onClick={(e) => handleOAuthConnect(e, ch.id)}
@@ -566,6 +605,15 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
                         className="px-2.5 py-1 rounded text-white text-[10px] font-bold hover:brightness-105 transition-all cursor-pointer shadow-xs"
                       >
                         {isConnectingOAuth === ch.id ? 'Connecting...' : 'Authorize'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => openDirectConnectModal(e, ch.id)}
+                        style={{ backgroundColor: '#009DFF' }}
+                        className="px-2.5 py-1 rounded text-white text-[10px] font-bold hover:opacity-90 transition-all cursor-pointer shadow-xs"
+                      >
+                        Connect Handle
                       </button>
                     )
                   )}
@@ -658,6 +706,92 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Social Channel Connect Modal */}
+      {connectModalPlatform && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden flex flex-col text-xs text-slate-800">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <div 
+                  style={{ backgroundColor: connectModalPlatform === 'TWITTER' ? '#000000' : connectModalPlatform === 'INSTAGRAM' ? '#E4405F' : '#1877F2' }}
+                  className="h-7 w-7 rounded-lg text-white font-bold flex items-center justify-center text-xs shadow-xs"
+                >
+                  {connectModalPlatform === 'TWITTER' ? '𝕏' : connectModalPlatform === 'INSTAGRAM' ? 'IG' : 'fb'}
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Connect {connectModalPlatform === 'TWITTER' ? 'Twitter / X' : connectModalPlatform.charAt(0) + connectModalPlatform.slice(1).toLowerCase()}
+                  </h3>
+                  <p className="text-[10px] text-slate-500">Link your verified organization channel</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConnectModalPlatform(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-200/60"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDirectConnect} className="p-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Social Handle / Username *
+                </label>
+                <input
+                  type="text"
+                  value={connectModalHandle}
+                  onChange={(e) => setConnectModalHandle(e.target.value)}
+                  placeholder={connectModalPlatform === 'TWITTER' ? '@FixoraAI' : '@brand_handle'}
+                  required
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">This handle will be tagged and verified during multi-platform publish dispatch.</p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Account Display Name
+                </label>
+                <input
+                  type="text"
+                  value={connectModalName}
+                  onChange={(e) => setConnectModalName(e.target.value)}
+                  placeholder="FixoraAI Global"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-[11px] flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>1-Click Dispatch Enabled:</strong> Once linked, approved posts from the Review Queue can be dispatched to this channel in 1 click!
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setConnectModalPlatform(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingDirectConnect || !connectModalHandle}
+                  style={{ backgroundColor: '#009DFF' }}
+                  className="px-5 py-2 rounded-xl text-white font-bold hover:opacity-90 disabled:opacity-50 cursor-pointer text-xs shadow-xs"
+                >
+                  {isSavingDirectConnect ? 'Linking...' : 'Verify & Connect'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

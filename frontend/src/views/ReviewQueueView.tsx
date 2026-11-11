@@ -1615,6 +1615,8 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                   {[
                     { id: 'LINKEDIN', name: 'LinkedIn Company & Personal Feed', badge: '1-Click UGC Share', color: '#0A66C2' },
                     { id: 'TWITTER', name: 'Twitter / X Feed', badge: 'Direct Tweet Dispatch', color: '#000000' },
+                    { id: 'INSTAGRAM', name: 'Instagram Creative Feed', badge: 'Visual Creative Broadcast', color: '#E4405F' },
+                    { id: 'FACEBOOK', name: 'Facebook Enterprise Page', badge: 'Page Feed & Stories', color: '#1877F2' },
                     { id: 'SLACK', name: 'Slack Marketing Channel', badge: 'Instant Webhook Broadcast', color: '#4A154B' }
                   ].map((ch) => {
                     const selected = selectedPublishChannels.includes(ch.id);
@@ -1633,7 +1635,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                             style={{ backgroundColor: ch.color }}
                             className="h-7 w-7 rounded-lg text-white font-bold text-[10px] flex items-center justify-center shrink-0"
                           >
-                            {ch.id === 'LINKEDIN' ? 'in' : ch.id === 'TWITTER' ? '𝕏' : '#'}
+                            {ch.id === 'LINKEDIN' ? 'in' : ch.id === 'TWITTER' ? '𝕏' : ch.id === 'INSTAGRAM' ? 'IG' : ch.id === 'FACEBOOK' ? 'fb' : '#'}
                           </div>
                           <div>
                             <div className="font-bold text-xs text-slate-900">{ch.name}</div>

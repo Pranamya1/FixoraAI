@@ -196,6 +196,20 @@ export const api = {
     return res.json();
   },
 
+  async connectDirectAccount(platform: string, handle: string, accountName?: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/channels/connect-direct`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform,
+        handle,
+        account_name: accountName
+      })
+    });
+    if (!res.ok) throw new Error('Failed to connect social account');
+    return res.json();
+  },
+
   async disconnectAccount(platform: string): Promise<any> {
     const res = await fetch(`${API_BASE}/channels/${platform}`, {
       method: 'DELETE'
