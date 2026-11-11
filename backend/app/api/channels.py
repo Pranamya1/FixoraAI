@@ -171,11 +171,11 @@ async def oauth_callback(
     """
     platform_norm = platform.upper()
     frontend_url = resolve_frontend_app_url(request)
-    frontend_redirect = f"{frontend_url}/settings?connected={platform_norm.lower()}"
+    frontend_redirect = f"{frontend_url}/?tab=settings&connected={platform_norm.lower()}"
 
     if error:
         logger.warning(f"OAuth connection cancelled or denied for {platform}: {error}")
-        return RedirectResponse(url=f"{frontend_url}/settings?error={error}")
+        return RedirectResponse(url=f"{frontend_url}/?tab=settings&error={error}")
 
     # Extract user or org ID from state if provided
     org_id = DEFAULT_ORG_ID

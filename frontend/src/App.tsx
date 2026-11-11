@@ -57,7 +57,7 @@ export function App() {
   });
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('connected') || window.location.pathname.includes('settings')) {
+    if (params.get('connected') || params.get('tab') === 'settings' || window.location.pathname.includes('settings')) {
       return 'settings';
     }
     return 'dashboard';
