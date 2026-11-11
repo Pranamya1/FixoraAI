@@ -26,6 +26,14 @@ class SendReviewRequest(BaseModel):
         default=None,
         description="Optional notes from creator to reviewer"
     )
+    slack_webhook_url: Optional[str] = Field(
+        default=None,
+        description="Custom Slack Incoming Webhook URL (overrides env DEFAULT_SLACK_WEBHOOK_URL)"
+    )
+    teams_webhook_url: Optional[str] = Field(
+        default=None,
+        description="Custom Microsoft Teams Connector Webhook URL (overrides env DEFAULT_TEAMS_WEBHOOK_URL)"
+    )
 
 class ChannelDispatchResult(BaseModel):
     channel: ReviewChannel

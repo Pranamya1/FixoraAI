@@ -130,6 +130,8 @@ export const api = {
     recipient_emails?: string[];
     recipient_phones?: string[];
     reviewer_notes?: string;
+    slack_webhook_url?: string;
+    teams_webhook_url?: string;
   }): Promise<any> {
     const res = await fetch(`${API_BASE}/audit/send-for-review`, {
       method: 'POST',

@@ -174,6 +174,8 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
   const [reviewChannel, setReviewChannel] = useState<string>('WHATSAPP');
   const [managerPhone, setManagerPhone] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
+  const [slackWebhook, setSlackWebhook] = useState('');
+  const [teamsWebhook, setTeamsWebhook] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [dispatchSuccess, setDispatchSuccess] = useState<any[] | null>(null);
 
@@ -539,8 +541,10 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
       };
       if (managerEmail.trim()) payload.recipient_emails = [managerEmail.trim()];
       if (managerPhone.trim()) payload.recipient_phones = [managerPhone.trim()];
+      if (slackWebhook.trim()) payload.slack_webhook_url = slackWebhook.trim();
+      if (teamsWebhook.trim()) payload.teams_webhook_url = teamsWebhook.trim();
       const res = await api.sendForReview(payload);
-      setDispatchSuccess(res.dispatched_channels || []);
+      setDispatchSuccess(res.results || res.dispatched_channels || []);
     } catch (err: any) {
       alert('Dispatch failed: ' + err.message);
     } finally {
@@ -1458,8 +1462,48 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
               )}
 
               {dispatchSuccess && (
-                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
-                  ✓ Dispatched to higher-ups successfully!
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-emerald-800">
+                    <Check className="h-4 w-4 text-emerald-600 stroke-[2.5]" />
+                    <span>Dispatched to higher-ups successfully!</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-700">
+                    Review notification sent via <strong>{reviewChannel}</strong>.
+                  </div>
+                </div>
+              )}
+
+              {reviewChannel === 'SLACK' && (
+                <div>
+                  <label className="font-semibold block mb-1 text-[11px] text-slate-700">
+                    Slack Incoming Webhook URL
+                    <span className="ml-1 text-slate-400 font-normal">(optional — uses default if blank)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={slackWebhook}
+                    onChange={(e) => setSlackWebhook(e.target.value)}
+                    placeholder="https://hooks.slack.com/services/T.../B.../..."
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-purple-500 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Get this from your Slack workspace → Apps → Incoming Webhooks</p>
+                </div>
+              )}
+
+              {reviewChannel === 'TEAMS' && (
+                <div>
+                  <label className="font-semibold block mb-1 text-[11px] text-slate-700">
+                    Teams Connector Webhook URL
+                    <span className="ml-1 text-slate-400 font-normal">(optional — uses default if blank)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={teamsWebhook}
+                    onChange={(e) => setTeamsWebhook(e.target.value)}
+                    placeholder="https://your-org.webhook.office.com/webhookb2/..."
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:border-indigo-500 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Get this from Teams channel → Connectors → Incoming Webhook</p>
                 </div>
               )}
 

@@ -96,7 +96,8 @@ class ReviewDispatcher:
                     author_name=author_name,
                     violations=violations,
                     notes=request.reviewer_notes,
-                    review_url=review_url
+                    review_url=review_url,
+                    webhook_url_override=getattr(request, 'slack_webhook_url', None)
                 )
                 results.append(res)
 
@@ -107,7 +108,8 @@ class ReviewDispatcher:
                     author_name=author_name,
                     violations=violations,
                     notes=request.reviewer_notes,
-                    review_url=review_url
+                    review_url=review_url,
+                    webhook_url_override=getattr(request, 'teams_webhook_url', None)
                 )
                 results.append(res)
 
@@ -321,7 +323,8 @@ class ReviewDispatcher:
         author_name: str,
         violations: List[Dict[str, Any]],
         notes: Optional[str],
-        review_url: str
+        review_url: str,
+        webhook_url_override: Optional[str] = None
     ) -> ChannelDispatchResult:
         """Dispatches Slack Block Kit card with interactive approval buttons."""
         msg_id = f"slack-{uuid.uuid4().hex[:8]}"
@@ -363,7 +366,7 @@ class ReviewDispatcher:
 
         sent_status = "SIMULATED"
         details = "Block Kit interactive review card prepared."
-        webhook_url = settings.DEFAULT_SLACK_WEBHOOK_URL
+        webhook_url = webhook_url_override or settings.DEFAULT_SLACK_WEBHOOK_URL
         if webhook_url:
             try:
                 async with httpx.AsyncClient(timeout=6.0) as client:
@@ -391,7 +394,8 @@ class ReviewDispatcher:
         author_name: str,
         violations: List[Dict[str, Any]],
         notes: Optional[str],
-        review_url: str
+        review_url: str,
+        webhook_url_override: Optional[str] = None
     ) -> ChannelDispatchResult:
         """Dispatches Microsoft Teams Adaptive / Connector Card."""
         msg_id = f"teams-{uuid.uuid4().hex[:8]}"
@@ -418,7 +422,7 @@ class ReviewDispatcher:
 
         sent_status = "SIMULATED"
         details = "Teams Connector Card prepared."
-        webhook_url = settings.DEFAULT_TEAMS_WEBHOOK_URL
+        webhook_url = webhook_url_override or settings.DEFAULT_TEAMS_WEBHOOK_URL
         if webhook_url:
             try:
                 async with httpx.AsyncClient(timeout=6.0) as client:
