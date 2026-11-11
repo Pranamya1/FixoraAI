@@ -4,7 +4,7 @@ import urllib.parse
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from app.core.config import settings
 from app.core.database import db_manager, DEFAULT_ORG_ID
@@ -16,6 +16,41 @@ router = APIRouter(prefix="/channels", tags=["Social Accounts & OAuth Connection
 # In-memory storage for connected accounts (starts completely clean for new users)
 if "connected_accounts" not in db_manager._memory_store:
     db_manager._memory_store["connected_accounts"] = []
+
+def resolve_linkedin_redirect_uri(request: Optional[Request] = None) -> str:
+    """Intelligently resolves the exact OAuth callback URI for LinkedIn."""
+    configured = (settings.LINKEDIN_REDIRECT_URI or os_env_get("LINKEDIN_REDIRECT_URI", "")).strip()
+    is_render = bool(
+        os.getenv("RENDER") or 
+        os.getenv("RENDER_EXTERNAL_HOSTNAME") or 
+        os.getenv("RENDER_EXTERNAL_URL") or 
+        (request and "onrender.com" in request.headers.get("host", ""))
+    )
+    if is_render:
+        if configured and "localhost" not in configured and "127.0.0.1" not in configured:
+            return configured
+        return "https://fixoraai-backend.onrender.com/api/auth/linkedin/callback"
+
+    if configured:
+        return configured
+    return "http://localhost:5173/api/auth/linkedin/callback"
+
+def resolve_frontend_app_url(request: Optional[Request] = None) -> str:
+    """Intelligently resolves the frontend destination URL after OAuth redirect."""
+    configured = (settings.APP_STUDIO_URL or os_env_get("APP_STUDIO_URL", "")).strip()
+    is_render = bool(
+        os.getenv("RENDER") or 
+        os.getenv("RENDER_EXTERNAL_HOSTNAME") or 
+        os.getenv("RENDER_EXTERNAL_URL") or 
+        (request and "onrender.com" in request.headers.get("host", ""))
+    )
+    if is_render:
+        if configured and "localhost" not in configured and "127.0.0.1" not in configured:
+            return configured.rstrip("/")
+        return "https://fixoraai.onrender.com"
+    if configured:
+        return configured.rstrip("/")
+    return "http://localhost:5173"
 
 @router.get("")
 async def list_connected_accounts(user: UserContext = Depends(get_current_user)) -> Dict[str, Any]:
@@ -64,6 +99,7 @@ async def list_connected_accounts(user: UserContext = Depends(get_current_user))
 @router.get("/connect/{platform}")
 async def initiate_oauth_connect(
     platform: str,
+    request: Request,
     user: UserContext = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
@@ -77,7 +113,7 @@ async def initiate_oauth_connect(
 
     if platform_norm == "LINKEDIN":
         client_id = settings.LINKEDIN_CLIENT_ID or os_env_get("LINKEDIN_CLIENT_ID", "")
-        callback_url = settings.LINKEDIN_REDIRECT_URI or f"http://localhost:8000/api/channels/callback/linkedin"
+        callback_url = resolve_linkedin_redirect_uri(request)
         # Properly URL-encode all query parameters (%20 for spaces)
         scope = os_env_get("LINKEDIN_SCOPES", "openid profile email w_member_social")
         params = {
@@ -122,6 +158,7 @@ async def initiate_oauth_connect(
 @router.get("/callback/{platform}")
 async def oauth_callback(
     platform: str,
+    request: Request = None,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None)
@@ -132,11 +169,12 @@ async def oauth_callback(
     saves the account, and redirects the user back to the Frontend Settings page.
     """
     platform_norm = platform.upper()
-    frontend_redirect = f"{settings.APP_STUDIO_URL}/settings?connected={platform_norm.lower()}"
+    frontend_url = resolve_frontend_app_url(request)
+    frontend_redirect = f"{frontend_url}/settings?connected={platform_norm.lower()}"
 
     if error:
         logger.warning(f"OAuth connection cancelled or denied for {platform}: {error}")
-        return RedirectResponse(url=f"{settings.APP_STUDIO_URL}/settings?error={error}")
+        return RedirectResponse(url=f"{frontend_url}/settings?error={error}")
 
     # Extract user or org ID from state if provided
     org_id = DEFAULT_ORG_ID
@@ -154,7 +192,7 @@ async def oauth_callback(
     if platform_norm == "LINKEDIN" and code:
         client_id = os_env_get("LINKEDIN_CLIENT_ID", "")
         client_secret = os_env_get("LINKEDIN_CLIENT_SECRET", "")
-        callback_url = settings.LINKEDIN_REDIRECT_URI or f"http://localhost:8000/api/channels/callback/linkedin"
+        callback_url = resolve_linkedin_redirect_uri(request)
         if client_id and client_secret:
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:

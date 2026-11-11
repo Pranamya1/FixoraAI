@@ -86,6 +86,28 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
   const [isDeleting, setIsDeleting] = useState(false);
   const [connectedSocials, setConnectedSocials] = useState<string[]>([]);
   const [isConnectingOAuth, setIsConnectingOAuth] = useState<string | null>(null);
+  const [oauthBanner, setOauthBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const conn = params.get('connected');
+      const err = params.get('error');
+      if (conn) {
+        return { 
+          type: 'success', 
+          message: `${conn.toUpperCase()} connected successfully! Your account is ready for automated publishing.` 
+        };
+      }
+      if (err) {
+        return { 
+          type: 'error', 
+          message: `Social account connection cancelled or failed: ${err}` 
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -256,6 +278,31 @@ export function SettingsView({ currentUser, onUpdateUser, onDeleteAccount }: Set
         <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center gap-2.5 text-emerald-800 text-xs shadow-2xs">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
           <span className="font-semibold">All workspace settings and brand preferences saved successfully.</span>
+        </div>
+      )}
+
+      {/* OAuth Connection Status Notification */}
+      {oauthBanner && (
+        <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-2.5 text-xs shadow-2xs ${
+          oauthBanner.type === 'success' 
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-800' 
+            : 'bg-amber-50 border-amber-300 text-amber-900'
+        }`}>
+          <div className="flex items-center gap-2.5">
+            {oauthBanner.type === 'success' ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            )}
+            <span className="font-semibold">{oauthBanner.message}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setOauthBanner(null)} 
+            className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 

@@ -11,13 +11,32 @@ if _env_path.exists():
 else:
     load_dotenv()
 
+_is_render = bool(
+    os.getenv("RENDER") or 
+    os.getenv("RENDER_EXTERNAL_HOSTNAME") or 
+    os.getenv("RENDER_EXTERNAL_URL") or 
+    os.getenv("ENVIRONMENT") == "production"
+)
+
+_raw_app_studio_url = os.getenv("APP_STUDIO_URL", "")
+if _is_render and ("localhost" in _raw_app_studio_url or not _raw_app_studio_url):
+    _default_app_studio = "https://fixoraai.onrender.com"
+else:
+    _default_app_studio = _raw_app_studio_url or "http://localhost:5173"
+
+_raw_linkedin_redirect = os.getenv("LINKEDIN_REDIRECT_URI", "")
+if _is_render and ("localhost" in _raw_linkedin_redirect or not _raw_linkedin_redirect):
+    _default_linkedin_redirect = "https://fixoraai-backend.onrender.com/api/auth/linkedin/callback"
+else:
+    _default_linkedin_redirect = _raw_linkedin_redirect or "http://localhost:5173/api/auth/linkedin/callback"
+
 class Settings(BaseModel):
     PROJECT_NAME: str = "FixoraAI"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     PORT: int = int(os.getenv("PORT", "8000"))
-    APP_STUDIO_URL: str = os.getenv("APP_STUDIO_URL", "http://localhost:5173")
+    APP_STUDIO_URL: str = _default_app_studio
     
     # CORS
     CORS_ORIGINS: List[str] = [
@@ -56,7 +75,7 @@ class Settings(BaseModel):
     # LinkedIn
     LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")
     LINKEDIN_CLIENT_SECRET: str = os.getenv("LINKEDIN_CLIENT_SECRET", "")
-    LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "")
+    LINKEDIN_REDIRECT_URI: str = _default_linkedin_redirect
     LINKEDIN_ACCESS_TOKEN: str = os.getenv("LINKEDIN_ACCESS_TOKEN", "")
     LINKEDIN_AUTHOR_URN: str = os.getenv("LINKEDIN_AUTHOR_URN", "")
     

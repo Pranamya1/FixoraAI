@@ -65,6 +65,19 @@ export function App() {
   const [pendingReviewsCount, setPendingReviewsCount] = useState<number>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Auto-forward OAuth callback if LinkedIn redirected to frontend domain
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const search = window.location.search;
+      if (path.includes('/auth/linkedin/callback') || (path.includes('/callback') && search.includes('code='))) {
+        const backendBase = (import.meta as any).env?.VITE_API_URL || 'https://fixoraai-backend.onrender.com/api';
+        const cleanBase = backendBase.replace(/\/api$/, '');
+        window.location.replace(`${cleanBase}/api/auth/linkedin/callback${search}`);
+      }
+    }
+  }, []);
+
   // Sync Supabase Auth with persisted local session
   useEffect(() => {
     let mounted = true;

@@ -1,6 +1,6 @@
 import logging
 from typing import Optional
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import db_manager
@@ -63,12 +63,13 @@ from app.api.channels import oauth_callback
 
 @app.get("/api/auth/linkedin/callback", tags=["Social Accounts & OAuth Connections"])
 async def linkedin_auth_callback_alias(
+    request: Request,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None)
 ):
     """Alias for LinkedIn OAuth callback to match external redirect configurations."""
-    return await oauth_callback(platform="linkedin", code=code, state=state, error=error)
+    return await oauth_callback(platform="linkedin", request=request, code=code, state=state, error=error)
 
 @app.get("/health", tags=["System"])
 async def health_check():
