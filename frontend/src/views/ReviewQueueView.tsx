@@ -1367,20 +1367,47 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
               </div>
 
               <div>
-                <label className="font-bold block mb-2 uppercase text-[10px] text-slate-600">Channels</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['WHATSAPP', 'GMAIL', 'SLACK', 'TEAMS'] as const).map((ch) => (
-                    <div
-                      key={ch}
-                      onClick={() => setReviewChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch])}
-                      className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${
-                        reviewChannels.includes(ch) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="font-semibold">{ch}</span>
-                      {reviewChannels.includes(ch) && <Check className="h-3 w-3 text-blue-600" />}
-                    </div>
-                  ))}
+                <label className="font-bold block mb-2 uppercase text-[10px] text-slate-600 tracking-wider">
+                  Select Higher-Up Review Channels
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {[
+                    { id: 'GMAIL', name: 'Gmail / Executive Email', badge: 'Responsive HTML Card', color: '#EA4335', icon: '✉️' },
+                    { id: 'WHATSAPP', name: 'WhatsApp Alert', badge: 'Instant Mobile Link', color: '#25D366', icon: '💬' },
+                    { id: 'SLACK', name: 'Slack Review Hub', badge: 'Block Kit Card', color: '#4A154B', icon: '#' },
+                    { id: 'TEAMS', name: 'Microsoft Teams', badge: 'Connector Card', color: '#6264A7', icon: 'T' }
+                  ].map((ch) => {
+                    const selected = reviewChannels.includes(ch.id as any);
+                    return (
+                      <div
+                        key={ch.id}
+                        onClick={() => setReviewChannels((prev) => selected ? prev.filter((c) => c !== ch.id) : [...prev, ch.id as any])}
+                        className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          selected
+                            ? 'border-blue-500 bg-blue-50/60 ring-1 ring-blue-500/30'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div 
+                            style={{ backgroundColor: ch.color }}
+                            className="h-7 w-7 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs"
+                          >
+                            {ch.icon}
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-slate-900">{ch.name}</div>
+                            <div className="text-[10px] text-slate-500">{ch.badge}</div>
+                          </div>
+                        </div>
+                        <div className={`h-4 w-4 rounded border flex items-center justify-center ${
+                          selected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'
+                        }`}>
+                          {selected && <Check className="h-3 w-3 stroke-[3]" />}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
