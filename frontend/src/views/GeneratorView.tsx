@@ -84,7 +84,7 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
 
   // Dispatch modal state
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewChannels, setReviewChannels] = useState<string[]>(['WHATSAPP', 'GMAIL', 'SLACK', 'TEAMS']);
+  const [reviewChannel, setReviewChannel] = useState<string>('WHATSAPP');
   const [managerPhone, setManagerPhone] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
   const [dispatching, setDispatching] = useState(false);
@@ -203,12 +203,12 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
 
   const handleDispatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!result?.post_id || reviewChannels.length === 0) return;
+    if (!result?.post_id || !reviewChannel) return;
     setDispatching(true);
     try {
       const payload: any = {
         post_id: result.post_id,
-        channels: reviewChannels,
+        channels: [reviewChannel],
         reviewer_notes: `Generated via Content Studio for ${channel} (${goal}). Score: 100% compliant.`
       };
       if (managerEmail.trim()) payload.recipient_emails = [managerEmail.trim()];
@@ -702,19 +702,23 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
                   {(['WHATSAPP', 'GMAIL', 'SLACK', 'TEAMS'] as const).map((ch) => (
                     <div
                       key={ch}
-                      onClick={() => setReviewChannels((prev) => prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch])}
+                      onClick={() => setReviewChannel(ch)}
                       className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${
-                        reviewChannels.includes(ch) ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 hover:bg-slate-50'
+                        reviewChannel === ch ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 hover:bg-slate-50'
                       }`}
                     >
                       <span className="font-semibold">{ch}</span>
-                      {reviewChannels.includes(ch) && <Check className="h-3 w-3 text-blue-600" />}
+                      <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                        reviewChannel === ch ? 'border-blue-600' : 'border-slate-300'
+                      }`}>
+                        {reviewChannel === ch && <div className="h-2 w-2 rounded-full bg-blue-600" />}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {reviewChannels.includes('WHATSAPP') && (
+              {reviewChannel === 'WHATSAPP' && (
                 <div>
                   <label className="font-semibold block mb-1 text-[11px] text-slate-700">WhatsApp Number</label>
                   <div className="flex gap-2">
@@ -738,7 +742,7 @@ export function GeneratorView({ onNavigate }: GeneratorViewProps) {
                 </div>
               )}
 
-              {reviewChannels.includes('GMAIL') && (
+              {reviewChannel === 'GMAIL' && (
                 <div>
                   <label className="font-semibold block mb-1 text-[11px] text-slate-700">Email</label>
                   <div className="flex gap-2">

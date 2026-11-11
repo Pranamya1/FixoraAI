@@ -171,7 +171,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
   // ── Dispatch Modal state ──
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [modalPost, setModalPost] = useState<Post | null>(null);
-  const [reviewChannels, setReviewChannels] = useState<string[]>(['WHATSAPP', 'GMAIL', 'SLACK', 'TEAMS']);
+  const [reviewChannel, setReviewChannel] = useState<string>('WHATSAPP');
   const [managerPhone, setManagerPhone] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
   const [dispatching, setDispatching] = useState(false);
@@ -529,12 +529,12 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
 
   const handleDispatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!modalPost || reviewChannels.length === 0) return;
+    if (!modalPost || !reviewChannel) return;
     setDispatching(true);
     try {
       const payload: any = {
         post_id: modalPost.id,
-        channels: reviewChannels,
+        channels: [reviewChannel],
         reviewer_notes: `Manager review requested for "${modalPost.title}". Score: ${modalPost.compliance_score || 100}%`
       };
       if (managerEmail.trim()) payload.recipient_emails = [managerEmail.trim()];
@@ -1377,11 +1377,11 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                     { id: 'SLACK', name: 'Slack Review Hub', badge: 'Block Kit Card', color: '#4A154B', icon: '#' },
                     { id: 'TEAMS', name: 'Microsoft Teams', badge: 'Connector Card', color: '#6264A7', icon: 'T' }
                   ].map((ch) => {
-                    const selected = reviewChannels.includes(ch.id as any);
+                    const selected = reviewChannel === ch.id;
                     return (
                       <div
                         key={ch.id}
-                        onClick={() => setReviewChannels((prev) => selected ? prev.filter((c) => c !== ch.id) : [...prev, ch.id as any])}
+                        onClick={() => setReviewChannel(ch.id)}
                         className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                           selected
                             ? 'border-blue-500 bg-blue-50/60 ring-1 ring-blue-500/30'
@@ -1400,10 +1400,10 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                             <div className="text-[10px] text-slate-500">{ch.badge}</div>
                           </div>
                         </div>
-                        <div className={`h-4 w-4 rounded border flex items-center justify-center ${
-                          selected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300'
+                        <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                          selected ? 'border-blue-600' : 'border-slate-300'
                         }`}>
-                          {selected && <Check className="h-3 w-3 stroke-[3]" />}
+                          {selected && <div className="h-2 w-2 rounded-full bg-blue-600" />}
                         </div>
                       </div>
                     );
@@ -1411,7 +1411,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                 </div>
               </div>
 
-              {reviewChannels.includes('WHATSAPP') && (
+              {reviewChannel === 'WHATSAPP' && (
                 <div>
                   <label className="font-semibold block mb-1 text-[11px] text-slate-700">WhatsApp Number</label>
                   <div className="flex gap-2">
@@ -1435,7 +1435,7 @@ export function ReviewQueueView({ onNavigate }: ReviewQueueViewProps = {}) {
                 </div>
               )}
 
-              {reviewChannels.includes('GMAIL') && (
+              {reviewChannel === 'GMAIL' && (
                 <div>
                   <label className="font-semibold block mb-1 text-[11px] text-slate-700">Email</label>
                   <div className="flex gap-2">
