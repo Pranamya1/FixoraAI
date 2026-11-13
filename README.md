@@ -16,7 +16,7 @@ FixoraAI is an enterprise-grade AI governance platform that prevents brand viola
 * **GitHub Source Code:** [https://github.com/Pranamya1/FixoraAI](https://github.com/Pranamya1/FixoraAI)
 
 ### ⚡ Instant Evaluator Access (Zero Registration Required)
-When opening the web application, click the **`⚡ 1-Click Judge Demo Access`** button on the sign-in screen to instantly enter the live enterprise workspace without email verification or onboarding barriers.
+When opening the web application, click the **`⚡ Demo account`** button on the sign-in screen to walk through the pre-filled 4-step onboarding wizard (or click continue) and enter the live enterprise workspace without email verification.
 *(Alternatively, you can sign in using `demo@fixora.ai` / `Demo1234!` or create a new account).*
 
 ---

@@ -20,17 +20,17 @@ export function AuthView({ onLogin, onStartSignup }: AuthViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // 1-Click Instant Demo Login for Hackathon Evaluators
+  // Demo account flow with pre-filled onboarding
   const handleDemoAccess = () => {
     try {
-      localStorage.setItem('fixora_onboarded_demo@fixora.ai', 'true');
+      localStorage.removeItem('fixora_onboarded_demo@fixora.ai');
     } catch (e) {
       console.warn(e);
     }
-    onLogin({
+    onStartSignup({
       email: 'demo@fixora.ai',
-      name: 'Judge Reviewer',
-      org: 'Enterprise Brand Lab'
+      name: 'Demo Evaluator',
+      org: 'Fixora Brand Lab'
     });
   };
 
@@ -335,7 +335,7 @@ export function AuthView({ onLogin, onStartSignup }: AuthViewProps) {
               </span>
             </div>
 
-            {/* Instant Judge Demo Access Button */}
+            {/* Demo Account Button */}
             <button
               type="button"
               onClick={handleDemoAccess}
@@ -347,9 +347,9 @@ export function AuthView({ onLogin, onStartSignup }: AuthViewProps) {
                 </div>
                 <div className="text-left">
                   <div className="font-bold text-xs text-blue-950 flex items-center gap-1.5">
-                    <span>⚡ 1-Click Judge Demo Access</span>
+                    <span>⚡ Demo account</span>
                   </div>
-                  <div className="text-[10px] text-blue-700 font-normal">Jump straight into active live workspace</div>
+                  <div className="text-[10px] text-blue-700 font-normal">Pre-filled onboarding — click continue to explore</div>
                 </div>
               </div>
               <ArrowRight className="h-4 w-4 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />

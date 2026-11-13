@@ -56,13 +56,33 @@ const AVAILABLE_CHANNELS = [
 export function OnboardingView({ initialData, onComplete }: OnboardingViewProps) {
   const [step, setStep] = useState(1);
   
-  // No pre-population: start clean with user's actual entered data or empty
-  const [companyName, setCompanyName] = useState(initialData.org || '');
-  const [industry, setIndustry] = useState('');
-  const [selectedTones, setSelectedTones] = useState<string[]>([]);
-  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  // If demo account, pre-fill all 4 steps so judges only need to click 'Continue'
+  const isDemo = initialData.email === 'demo@fixora.ai' || initialData.email?.includes('demo');
+
+  const [companyName, setCompanyName] = useState(
+    initialData.org || (isDemo ? 'Fixora Brand Lab' : '')
+  );
+  const [industry, setIndustry] = useState(
+    isDemo ? 'Enterprise B2B SaaS & Cloud Software' : ''
+  );
+  const [selectedTones, setSelectedTones] = useState<string[]>(
+    isDemo ? ['Attractive & Bold', 'Clear & Professional'] : []
+  );
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(
+    isDemo ? ['LinkedIn', 'Twitter', 'Slack', 'Gmail', 'Teams'] : []
+  );
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [rulesText, setRulesText] = useState('');
+  const [rulesText, setRulesText] = useState(
+    isDemo
+      ? `We build high-performance brand governance and scalable B2B SaaS applications.\n` +
+        `Tone of Voice: Attractive & bold, yet clear & professional. Lead with authoritative, high-impact hooks.\n` +
+        `Prohibited Content: Never name, attack, or negatively compare competitors directly.\n` +
+        `Legal Claims: Never make absolute compliance guarantees without higher-up approval.\n` +
+        `Technical Standards: Always cite measurable metrics (e.g. latency, compliance score, throughput).\n` +
+        `Visual & Branding: Primary color token is #009DFF with high typographical contrast.\n` +
+        `Social Distribution: Keep posts engaging with 2-4 relevant hashtags.`
+      : ''
+  );
   const [analyzedRules, setAnalyzedRules] = useState<any[]>([]);
   const [analyzingRules, setAnalyzingRules] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
