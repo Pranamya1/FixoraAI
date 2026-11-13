@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, Mail, Lock, User, Building2, ArrowRight, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, User, Building2, ArrowRight, Eye, EyeOff, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
 interface AuthViewProps {
@@ -19,6 +19,20 @@ export function AuthView({ onLogin, onStartSignup }: AuthViewProps) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // 1-Click Instant Demo Login for Hackathon Evaluators
+  const handleDemoAccess = () => {
+    try {
+      localStorage.setItem('fixora_onboarded_demo@fixora.ai', 'true');
+    } catch (e) {
+      console.warn(e);
+    }
+    onLogin({
+      email: 'demo@fixora.ai',
+      name: 'Judge Reviewer',
+      org: 'Enterprise Brand Lab'
+    });
+  };
 
   // Handle Email + Password Submit (Real Supabase Auth)
   const handleSubmit = async (e: React.FormEvent) => {
@@ -311,6 +325,34 @@ export function AuthView({ onLogin, onStartSignup }: AuthViewProps) {
                   <ArrowRight className="h-3.5 w-3.5" />
                 </>
               )}
+            </button>
+
+            {/* Evaluator Quick Access Divider */}
+            <div className="relative my-4 flex items-center justify-center">
+              <div className="border-t border-[#CBD5E1] w-full" />
+              <span className="bg-[#E4EBF2] px-2 text-[10px] uppercase font-bold tracking-wider text-slate-500 whitespace-nowrap">
+                For Hackathon Evaluators
+              </span>
+            </div>
+
+            {/* Instant Judge Demo Access Button */}
+            <button
+              type="button"
+              onClick={handleDemoAccess}
+              className="w-full py-2.5 px-3.5 rounded-xl border border-blue-300 bg-linear-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-900 font-bold text-xs flex items-center justify-between shadow-2xs transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-xs text-blue-950 flex items-center gap-1.5">
+                    <span>⚡ 1-Click Judge Demo Access</span>
+                  </div>
+                  <div className="text-[10px] text-blue-700 font-normal">Jump straight into active live workspace</div>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-blue-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
             </button>
           </form>
         </div>
