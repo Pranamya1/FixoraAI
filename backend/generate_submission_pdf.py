@@ -46,7 +46,6 @@ class NumberedCanvas(canvas.Canvas):
 
         # Footer on all pages
         page_str = f"Page {self._pageNumber} of {page_count}"
-        self.drawString(54, 36, "Confidential — We Code Coders Round 3 Hackathon Submission")
         self.drawRightString(558, 36, page_str)
         self.setStrokeColor(colors.HexColor("#E2E8F0"))
         self.setLineWidth(0.5)
