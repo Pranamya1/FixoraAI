@@ -240,7 +240,8 @@ def build_pdf(filename="FixoraAI_Round3_Product_Report.pdf"):
             Paragraph("<b>Improvement 1:<br/>Direct Multi-Platform Social Publishing</b>", table_cell_bold),
             Paragraph(
                 "• <b>Real LinkedIn OAuth 2.0:</b> Engineered live authorization code flow with secure token persistence in Supabase, enabling 1-click publishing directly to live LinkedIn feeds.<br/>"
-                "• <b>Multi-Channel Routing:</b> Added Twitter/X pre-formatted Web Intent dispatch and Slack channel webhook integration, eliminating manual copy-pasting for marketing teams.",
+                "• <b>Twitter/X & Slack Integration:</b> Twitter/X pre-formatted Web Intent dispatch and Slack channel webhook broadcasts.<br/>"
+                "• <b>Third-Party API Constraints (Transparency):</b> LinkedIn is 100% live direct publishing. Twitter/X programmatic API write access requires a paid $100/mo enterprise tier, so FixoraAI utilizes 1-click Web Intent dispatch instead. Meta (Instagram & Facebook) requires multi-week Business Organization Verification and manual App Review, so FixoraAI provides verified brand handle linking and staged copy distribution.",
                 table_cell_style
             )
         ],

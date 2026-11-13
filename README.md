@@ -44,6 +44,11 @@ As committed in the Round 2 milestone submission, the following three core enter
 * **Real LinkedIn OAuth Integration:** Live OAuth 2.0 integration with Supabase token encryption and automated refresh. Creators publish approved compliant copy directly to LinkedIn company/personal feeds in 1 click.
 * **Twitter/X & Multi-Channel Intent:** Instant pre-formatted Web Intent dispatch for Twitter/X with calibrated character limits, alongside direct marketing channel webhooks.
 * **Connected Channel Settings:** Allows connecting enterprise brand handles for X, Instagram, Facebook, and LinkedIn directly from the workspace settings.
+* **Third-Party API Constraints & Channel Status (Full Transparency):**
+  * **LinkedIn (100% Live Direct Publishing):** Fully operational via official OAuth 2.0 authorization code flow with secure token persistence and 1-click live feed posting.
+  * **Twitter/X (Web Intent Gateway):** Due to X deprecating its free write API tier and requiring a paid $100/mo enterprise subscription, FixoraAI provides verified 1-click Web Intent dispatch to pre-fill calibrated tweets without requiring paid API keys.
+  * **Instagram & Facebook (Brand Handle Linking & Staging):** Due to Meta requiring formal corporate business organization verification and a multi-week manual App Review process, FixoraAI provides verified brand handle linking in Settings and staged copy distribution.
+  * **Slack (Live Webhook Publishing):** Directly broadcasts approved posts to marketing channels via Incoming Webhooks.
 
 ### 2. Multimodal Visual Brand Auditing via Google Gemini Vision
 * **Creative Graphic Inspection:** In addition to text rules, FixoraAI uses Gemini Vision to inspect uploaded graphics, creative banners, and generated posters.
