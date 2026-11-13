@@ -18,6 +18,9 @@ frontend/.env
 generated_assets/
 *.png
 *.pdf
+!FixoraAI_Round3_Product_Report.pdf
+!frontend/public/FixoraAI_Round3_Product_Report.pdf
+!frontend/public/Brand_Guidelines.pdf
 
 # Node / Frontend
 node_modules/
